@@ -1,46 +1,56 @@
 import React from "react";
-import { NODE_DEFS } from "../workflow/nodeDefinitions.js";
 
-export default function NodePalette() {
-  const types = Object.keys(NODE_DEFS);
-
-  const onDragStart = (evt, nodeType) => {
-    evt.dataTransfer.setData("application/reactflow", nodeType);
-    evt.dataTransfer.effectAllowed = "move";
+function PaletteItem({ type, title, desc, badges }) {
+  const onDragStart = (event) => {
+    event.dataTransfer.setData("application/reactflow", type);
+    event.dataTransfer.effectAllowed = "move";
   };
 
   return (
-    <div>
-      <div className="h1">노드 추가</div>
-      <div className="small">드래그해서 캔버스에 놓으세요.</div>
-
-      <div style={{ marginTop: 12 }}>
-        {types.map((t) => {
-          const def = NODE_DEFS[t];
-          return (
-            <div
-              key={t}
-              className="paletteItem"
-              draggable
-              onDragStart={(e) => onDragStart(e, t)}
-              title="Drag to canvas"
-            >
-              <div style={{ fontWeight: 800, fontSize: 13 }}>{def.label}</div>
-              <div className="small">{def.description}</div>
-              <div className="badgeRow">
-                <span className="badge">{def.category}</span>
-                <span className="badge">{t}</span>
-              </div>
-            </div>
-          );
-        })}
+    <div className="paletteItem" draggable onDragStart={onDragStart}>
+      <div style={{ fontWeight: 800, fontSize: 13 }}>{title}</div>
+      <div className="small">{desc}</div>
+      <div className="badgeRow">
+        {badges.map((b) => (
+          <span className="badge" key={b}>{b}</span>
+        ))}
       </div>
+    </div>
+  );
+}
 
-      <div className="h2">팁</div>
-      <div className="card small">
-        1) Input → Generate → Output 순으로 연결<br />
-        2) Run 버튼을 누르면 순서대로 실행됩니다.<br />
-        3) Save/Load로 로컬에 저장됩니다.
+export default function NodePalette() {
+  return (
+    <div>
+      <div className="h1">Nodes</div>
+
+      <PaletteItem
+        type="input"
+        title="Input"
+        desc="주제/키워드 입력. 자동으로 변수로 내려감."
+        badges={["topic", "seed"]}
+      />
+      <PaletteItem
+        type="generate"
+        title="Generate (Manual)"
+        desc="할 일을 자유 입력 → 프롬프트 복사 → 결과 붙여넣기/업로드."
+        badges={["todo", "prompt", "manual"]}
+      />
+      <PaletteItem
+        type="asset"
+        title="Asset"
+        desc="외부자료/파일/링크/텍스트를 변수로 저장."
+        badges={["upload", "url", "text"]}
+      />
+      <PaletteItem
+        type="output"
+        title="Output"
+        desc="최종 결과 표시(업스트림 변수 모아서 보기)."
+        badges={["final", "view"]}
+      />
+
+      <div className="card small" style={{ marginTop: 10 }}>
+        Drag & Drop으로 캔버스에 추가하세요.
       </div>
     </div>
   );
