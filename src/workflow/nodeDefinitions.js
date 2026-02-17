@@ -1,3 +1,12 @@
+import {
+  ROLE_OPTIONS,
+  PROVIDER_OPTIONS,
+  MODELS_BY_ROLE,
+  DEFAULT_OUTPUT_KEY_BY_ROLE,
+  DEFAULT_INSTRUCTIONS_BY_ROLE,
+  DEFAULT_PROMPT_BY_ROLE,
+} from "./catalog.js";
+
 export const NODE_DEFS = {
   input: {
     label: "입력 (Input)",
@@ -9,29 +18,42 @@ export const NODE_DEFS = {
     },
     fields: [
       { name: "key", label: "키 (key)", type: "text", placeholder: "topic" },
-      { name: "value", label: "값 (value)", type: "textarea", placeholder: "예: 건강 뉴스" },
+      { name: "value", label: "값 (value)", type: "textarea", placeholder: "예: 보험/경제 이슈" },
     ],
   },
+
   generate: {
-    label: "생성 (Generate/LLM)",
+    label: "AI 작업 (Manual Assisted)",
     category: "Generate",
-    description: "프롬프트 템플릿으로 텍스트를 생성(여기선 시뮬레이션)합니다.",
+    description:
+      "역할/모델을 선택하고(초기엔 저장만), 프롬프트를 복사해 AI에서 결과를 받아 붙여넣습니다.",
     defaultConfig: {
-      model: "gemini-1.5-pro (mock)",
-      temperature: 0.7,
-      promptTemplate:
-        "주제: {{topic}}\n타겟: {{target}}\n\n위 내용을 바탕으로 20초 쇼츠 대본(훅 1줄 + 3포인트)을 생성해줘.",
+      roleType: "text",
+      provider: "google",
+      modelId: "Gemini 3 Flash",
+      outputKey: "script_text",
+      instructions: DEFAULT_INSTRUCTIONS_BY_ROLE.text,
+      promptTemplate: DEFAULT_PROMPT_BY_ROLE.text,
+
+      // 수동 결과(초기 MVP)
+      manualText: "",
+      manualUrl: "",
+      manualFileName: "",
     },
     fields: [
-      { name: "model", label: "모델", type: "text", placeholder: "gemini..." },
-      { name: "temperature", label: "온도(0~1)", type: "number", placeholder: "0.7" },
+      { name: "roleType", label: "역할(Role)", type: "roleSelect" },
+      { name: "provider", label: "Provider", type: "providerSelect" },
+      { name: "modelId", label: "모델(Model)", type: "modelSelect" },
+      { name: "outputKey", label: "출력 키(outputKey)", type: "text", placeholder: "script_text" },
+      { name: "instructions", label: "이 단계에서 할 일(설명)", type: "textarea" },
       { name: "promptTemplate", label: "프롬프트 템플릿", type: "textarea" },
     ],
   },
+
   output: {
     label: "출력 (Output)",
     category: "Output",
-    description: "최종 결과를 보여줍니다.",
+    description: "최종 결과를 보여줍니다(초기엔 수동 합성/업로드 결과도 저장 가능).",
     defaultConfig: {
       format: "text",
       title: "최종 결과",
@@ -43,14 +65,23 @@ export const NODE_DEFS = {
   },
 };
 
+export const ROLE_META = {
+  options: ROLE_OPTIONS,
+  providers: PROVIDER_OPTIONS,
+  modelsByRole: MODELS_BY_ROLE,
+  defaultOutputKeyByRole: DEFAULT_OUTPUT_KEY_BY_ROLE,
+  defaultInstructionsByRole: DEFAULT_INSTRUCTIONS_BY_ROLE,
+  defaultPromptByRole: DEFAULT_PROMPT_BY_ROLE,
+};
+
 export function makeNodeData(type) {
   const def = NODE_DEFS[type];
   return {
     type,
     label: def.label,
     config: structuredClone(def.defaultConfig),
-    status: "idle", // idle | running | success | error
-    output: null,   // 실행 결과 (객체)
+    status: "idle", // idle | todo | doing | done | error
+    output: null,   // 노드 산출물(수동 입력 후 "적용" 시 채워짐)
     outputPreview: "",
     lastError: "",
   };
