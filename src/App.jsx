@@ -31,6 +31,7 @@ import {
 
 import { loadApiKeys, saveApiKeys } from "./workflow/apiKeys.js";
 import { buildJsonResponsePrompt } from "./workflow/promptComposer.js";
+import { resolveSchemaConfig } from "./workflow/responseSchema.js";
 
 const STORAGE_KEY = "opal_mvp_workflow_v3";
 const QUICK_NODE_BUTTONS = [
@@ -333,7 +334,12 @@ function AppInner() {
       }
       const outputsMap = buildOutputsMapFromNodes(nodes);
       const vars = gatherIncomingVars(nodeId, edges, outputsMap);
-      const prompt = buildJsonResponsePrompt(node.data.config?.promptTemplate || "", vars);
+      const schemaConfig = resolveSchemaConfig(vars, node.data.config || {});
+      if (schemaConfig.error) {
+        alert(schemaConfig.error);
+        return;
+      }
+      const prompt = buildJsonResponsePrompt(node.data.config?.promptTemplate || "", vars, schemaConfig);
       await navigator.clipboard.writeText(prompt);
       alert("JSON 스키마 응답용 프롬프트를 클립보드에 복사했습니다.");
     },

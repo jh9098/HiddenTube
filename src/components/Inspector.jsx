@@ -6,6 +6,7 @@ import {
   previewOf,
 } from "../workflow/runner.js";
 import { buildJsonResponsePrompt, extractVarKeys } from "../workflow/promptComposer.js";
+import { resolveSchemaConfig, tryParseJsonObject } from "../workflow/responseSchema.js";
 
 function Field({ field, value, onChange, capability }) {
   if (field.type === "capabilitySelect") {
@@ -86,6 +87,8 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
     return gatherIncomingVars(selectedNode.id, edges, outputsMap);
   }, [selectedNode, nodes, edges]);
 
+  const schemaConfig = useMemo(() => resolveSchemaConfig(incomingVars, cfg), [incomingVars, cfg]);
+
   if (!selectedNode) {
     return (
       <div>
@@ -102,9 +105,13 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
   };
 
   const copyRenderedPrompt = async () => {
-    const prompt = buildJsonResponsePrompt(cfg.promptTemplate || "", incomingVars);
+    if (schemaConfig.error) {
+      alert(schemaConfig.error);
+      return;
+    }
+    const prompt = buildJsonResponsePrompt(cfg.promptTemplate || "", incomingVars, schemaConfig);
     await navigator.clipboard.writeText(prompt);
-    alert("JSON 스키마 응답용 프롬프트를 클립보드에 복사했습니다.");
+    alert(schemaConfig.responseMode === "freeform" ? "자유모드 프롬프트를 복사했습니다." : "JSON 스키마 응답용 프롬프트를 복사했습니다.");
   };
 
   const applyInputAsOutput = () => {
@@ -122,8 +129,16 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
   const applyGenerateManualToOutput = () => {
     const outKey = (cfg.outputKey || "").trim() || "result";
     const payload = {};
+    const manualText = cfg.manualText?.trim() || "";
 
-    if (cfg.manualText?.trim()) payload[outKey] = cfg.manualText.trim();
+    if (manualText) {
+      payload[outKey] = manualText;
+      const parsed = tryParseJsonObject(manualText);
+      if (parsed) {
+        payload[outKey] = parsed;
+        payload[`${outKey}_raw`] = manualText;
+      }
+    }
     if (cfg.manualUrl?.trim()) payload[`${outKey}_url`] = cfg.manualUrl.trim();
     if (cfg.manualFileName?.trim()) payload[`${outKey}_file`] = cfg.manualFileName.trim();
 
@@ -135,7 +150,7 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
       status: "done",
       lastError: "",
     });
-    alert("수동 결과를 output에 적용했습니다. (status=done)");
+    alert("수동 결과를 output에 적용했습니다. (다운스트림 노드에서 참조 가능)");
   };
 
   const applyAssetToOutput = () => {
@@ -220,9 +235,89 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
         ))}
 
         {selectedNode.data.type === "generate" ? (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-            <button className="btn" onClick={copyRenderedPrompt}>Copy Prompt (업스트림 반영)</button>
-          </div>
+          <>
+            <div className="field">
+              <div className="label">응답 모드</div>
+              <select
+                className="select"
+                value={cfg.responseMode || "schema"}
+                onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, responseMode: e.target.value } })}
+              >
+                <option value="schema">정해진 틀(JSON 스키마)</option>
+                <option value="freeform">자유모드(텍스트/마크다운 허용)</option>
+              </select>
+            </div>
+
+            {cfg.responseMode !== "freeform" ? (
+              <>
+                <div className="field">
+                  <div className="label">스키마 설정 방식</div>
+                  <select
+                    className="select"
+                    value={cfg.schemaMode || "template"}
+                    onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, schemaMode: e.target.value } })}
+                  >
+                    <option value="template">간단 템플릿</option>
+                    <option value="json">JSON 직접 입력</option>
+                  </select>
+                </div>
+
+                {cfg.schemaMode !== "json" ? (
+                  <>
+                    <div className="field">
+                      <div className="label">템플릿 필드(한 줄에 1개)</div>
+                      <textarea
+                        className="textarea"
+                        value={cfg.schemaFieldsText || ""}
+                        onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, schemaFieldsText: e.target.value } })}
+                        placeholder={"headline|string|제목|required\nscore|number|점수|\nitems|array|목록|"}
+                      />
+                      <div className="small" style={{ marginTop: 6 }}>
+                        형식: key|type|string 설명|required(선택)
+                      </div>
+                    </div>
+
+                    <label className="small" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={cfg.enforceCoreFields !== false}
+                        onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, enforceCoreFields: e.target.checked } })}
+                      />
+                      핵심 필드(summary/result_text/keywords) 자동 포함
+                    </label>
+                  </>
+                ) : (
+                  <div className="field">
+                    <div className="label">JSON Schema 직접 입력</div>
+                    <textarea
+                      className="textarea"
+                      value={cfg.schemaText || ""}
+                      onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, schemaText: e.target.value } })}
+                      placeholder='{"type":"object","properties":{"result_text":{"type":"string"}}}'
+                    />
+                  </div>
+                )}
+
+                <div className="small" style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
+                  {schemaConfig.error || "스키마 미리보기\n" + JSON.stringify(schemaConfig.schema, null, 2)}
+                </div>
+              </>
+            ) : (
+              <div className="field">
+                <div className="label">자유모드 가이드(선택)</div>
+                <textarea
+                  className="textarea"
+                  value={cfg.freeformGuide || ""}
+                  onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, freeformGuide: e.target.value } })}
+                  placeholder="예: 5문장 이내, 핵심 결론 먼저, 표는 markdown으로 작성"
+                />
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <button className="btn" onClick={copyRenderedPrompt}>Copy Prompt (업스트림 반영)</button>
+            </div>
+          </>
         ) : null}
       </div>
 
@@ -257,7 +352,7 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
                 className="textarea"
                 value={cfg.manualText || ""}
                 onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, manualText: e.target.value } })}
-                placeholder="AI 결과(대본/요약/표 등)를 여기에 붙여넣으세요."
+                placeholder="AI 결과(대본/요약/표 등)를 여기에 붙여넣으세요. 자유모드 결과도 그대로 저장됩니다."
               />
             </div>
 
@@ -306,7 +401,6 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
         <>
           <div className="h2">Asset 값</div>
           <div className="card">
-            {/* ✅ YouTube 선택 시 URL만 입력 */}
             {isAssetYoutube ? (
               <>
                 <div className="small" style={{ marginBottom: 8 }}>
