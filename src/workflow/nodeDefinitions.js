@@ -1,62 +1,88 @@
 import {
-  ROLE_OPTIONS,
+  CAPABILITY_OPTIONS,
   PROVIDER_OPTIONS,
-  MODELS_BY_ROLE,
-  DEFAULT_OUTPUT_KEY_BY_ROLE,
-  DEFAULT_INSTRUCTIONS_BY_ROLE,
-  DEFAULT_PROMPT_BY_ROLE,
+  MODELS_BY_CAPABILITY,
+  DEFAULT_OUTPUT_KEY_BY_CAPABILITY,
+  DEFAULT_TODO_BY_CAPABILITY,
+  DEFAULT_PROMPT_BY_CAPABILITY,
+  ASSET_SOURCES,
 } from "./catalog.js";
 
 export const NODE_DEFS = {
   input: {
     label: "입력 (Input)",
     category: "Input",
-    description: "주제/키워드 등 시작 데이터를 넣습니다.",
+    description: "주제/키워드/기본 정보를 넣습니다. (자동으로 output 변수로 내려감)",
     defaultConfig: {
       key: "topic",
       value: "유튜브 쇼츠 주제",
     },
     fields: [
-      { name: "key", label: "키 (key)", type: "text", placeholder: "topic" },
-      { name: "value", label: "값 (value)", type: "textarea", placeholder: "예: 보험/경제 이슈" },
+      { name: "key", label: "키(key)", type: "text", placeholder: "topic" },
+      { name: "value", label: "값(value)", type: "textarea", placeholder: "예: 오늘의 경제 이슈" },
     ],
   },
 
   generate: {
-    label: "AI 작업 (Manual Assisted)",
+    label: "작업 (Generate/Manual)",
     category: "Generate",
     description:
-      "역할/모델을 선택하고(초기엔 저장만), 프롬프트를 복사해 AI에서 결과를 받아 붙여넣습니다.",
+      "할 일을 자유롭게 적고, 프롬프트를 복사해 AI에서 결과를 받아 붙여넣습니다.",
     defaultConfig: {
-      roleType: "text",
+      capability: "text",
       provider: "google",
       modelId: "Gemini 3 Flash",
       outputKey: "script_text",
-      instructions: DEFAULT_INSTRUCTIONS_BY_ROLE.text,
-      promptTemplate: DEFAULT_PROMPT_BY_ROLE.text,
 
-      // 수동 결과(초기 MVP)
+      // 자유 입력
+      todo: DEFAULT_TODO_BY_CAPABILITY.text,
+      promptTemplate: DEFAULT_PROMPT_BY_CAPABILITY.text,
+
+      // 수동 결과
       manualText: "",
       manualUrl: "",
       manualFileName: "",
     },
     fields: [
-      { name: "roleType", label: "역할(Role)", type: "roleSelect" },
+      { name: "capability", label: "기능(Capability)", type: "capabilitySelect" },
       { name: "provider", label: "Provider", type: "providerSelect" },
       { name: "modelId", label: "모델(Model)", type: "modelSelect" },
       { name: "outputKey", label: "출력 키(outputKey)", type: "text", placeholder: "script_text" },
-      { name: "instructions", label: "이 단계에서 할 일(설명)", type: "textarea" },
-      { name: "promptTemplate", label: "프롬프트 템플릿", type: "textarea" },
+      { name: "todo", label: "이 단계에서 할 일(자유 입력)", type: "textarea" },
+      { name: "promptTemplate", label: "프롬프트 템플릿(자유)", type: "textarea" },
+    ],
+  },
+
+  asset: {
+    label: "자산 (Asset)",
+    category: "Asset",
+    description: "외부자료/파일/링크/텍스트를 변수로 저장합니다.",
+    defaultConfig: {
+      source: "upload",     // upload | drive | youtube | text | drawing
+      assetKey: "asset_1",  // downstream 변수 키
+      title: "자료",
+      notes: "",
+
+      // 값(수동)
+      text: "",
+      url: "",
+      fileName: "",
+    },
+    fields: [
+      { name: "source", label: "소스(Source)", type: "assetSourceSelect" },
+      { name: "assetKey", label: "변수 키(assetKey)", type: "text", placeholder: "asset_1" },
+      { name: "title", label: "제목", type: "text", placeholder: "자료" },
+      { name: "notes", label: "메모", type: "textarea" },
     ],
   },
 
   output: {
     label: "출력 (Output)",
     category: "Output",
-    description: "최종 결과를 보여줍니다(초기엔 수동 합성/업로드 결과도 저장 가능).",
+    description: "최종 결과를 모아 표시합니다.",
     defaultConfig: {
-      format: "text",
       title: "최종 결과",
+      format: "text",
     },
     fields: [
       { name: "title", label: "제목", type: "text", placeholder: "최종 결과" },
@@ -65,13 +91,14 @@ export const NODE_DEFS = {
   },
 };
 
-export const ROLE_META = {
-  options: ROLE_OPTIONS,
+export const META = {
+  capabilities: CAPABILITY_OPTIONS,
   providers: PROVIDER_OPTIONS,
-  modelsByRole: MODELS_BY_ROLE,
-  defaultOutputKeyByRole: DEFAULT_OUTPUT_KEY_BY_ROLE,
-  defaultInstructionsByRole: DEFAULT_INSTRUCTIONS_BY_ROLE,
-  defaultPromptByRole: DEFAULT_PROMPT_BY_ROLE,
+  modelsByCapability: MODELS_BY_CAPABILITY,
+  defaultOutputKeyByCapability: DEFAULT_OUTPUT_KEY_BY_CAPABILITY,
+  defaultTodoByCapability: DEFAULT_TODO_BY_CAPABILITY,
+  defaultPromptByCapability: DEFAULT_PROMPT_BY_CAPABILITY,
+  assetSources: ASSET_SOURCES,
 };
 
 export function makeNodeData(type) {
@@ -81,7 +108,7 @@ export function makeNodeData(type) {
     label: def.label,
     config: structuredClone(def.defaultConfig),
     status: "idle", // idle | todo | doing | done | error
-    output: null,   // 노드 산출물(수동 입력 후 "적용" 시 채워짐)
+    output: null,   // 변수 객체 (업스트림으로 전달)
     outputPreview: "",
     lastError: "",
   };
