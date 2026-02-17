@@ -25,12 +25,12 @@ import {
   topoSort,
   buildOutputsMapFromNodes,
   gatherIncomingVars,
-  renderTemplate,
   previewOf,
   nowHHMMSS,
 } from "./workflow/runner.js";
 
 import { loadApiKeys, saveApiKeys } from "./workflow/apiKeys.js";
+import { buildJsonResponsePrompt } from "./workflow/promptComposer.js";
 
 const STORAGE_KEY = "opal_mvp_workflow_v3";
 const QUICK_NODE_BUTTONS = [
@@ -112,6 +112,7 @@ function AppInner() {
   const canvasRef = useRef(null);
   const connectingNodeIdRef = useRef(null);
   const connectionSucceededRef = useRef(false);
+  const reconnectingFromTargetRef = useRef(false);
 
   const nodeTypes = useMemo(
     () => ({
@@ -184,7 +185,14 @@ function AppInner() {
   const onConnect = useCallback(
     (params) => {
       connectionSucceededRef.current = true;
-      setEdges((eds) => addEdge({ ...params, id: nanoid() }, eds));
+      const nextSource = reconnectingFromTargetRef.current
+        ? connectingNodeIdRef.current
+        : params.source;
+
+      reconnectingFromTargetRef.current = false;
+
+      if (!nextSource || !params?.target || nextSource === params.target) return;
+      setEdges((eds) => addEdge({ ...params, id: nanoid(), source: nextSource }, eds));
     },
     [setEdges]
   );
@@ -325,9 +333,9 @@ function AppInner() {
       }
       const outputsMap = buildOutputsMapFromNodes(nodes);
       const vars = gatherIncomingVars(nodeId, edges, outputsMap);
-      const prompt = renderTemplate(node.data.config?.promptTemplate || "", vars);
+      const prompt = buildJsonResponsePrompt(node.data.config?.promptTemplate || "", vars);
       await navigator.clipboard.writeText(prompt);
-      alert("프롬프트를 클립보드에 복사했습니다.");
+      alert("JSON 스키마 응답용 프롬프트를 클립보드에 복사했습니다.");
     },
     [nodes, edges]
   );
@@ -405,14 +413,40 @@ function AppInner() {
 
   const onConnectStart = useCallback((_, params) => {
     connectionSucceededRef.current = false;
-    connectingNodeIdRef.current = params?.nodeId || null;
-  }, []);
+    reconnectingFromTargetRef.current = false;
+
+    const nodeId = params?.nodeId || null;
+    const handleType = params?.handleType || null;
+
+    if (nodeId && handleType === "target") {
+      let detachedEdge = null;
+      setEdges((prev) => {
+        const idx = prev.findIndex((e) => e.target === nodeId);
+        if (idx < 0) return prev;
+        detachedEdge = prev[idx];
+        return prev.filter((_, i) => i !== idx);
+      });
+
+      if (detachedEdge?.source) {
+        connectingNodeIdRef.current = detachedEdge.source;
+        reconnectingFromTargetRef.current = true;
+        return;
+      }
+    }
+
+    connectingNodeIdRef.current = nodeId;
+  }, [setEdges]);
 
   const onConnectEnd = useCallback((event) => {
-    if (connectionSucceededRef.current) return;
+    if (connectionSucceededRef.current) {
+      connectingNodeIdRef.current = null;
+      reconnectingFromTargetRef.current = false;
+      return;
+    }
 
     const sourceId = connectingNodeIdRef.current;
     connectingNodeIdRef.current = null;
+    reconnectingFromTargetRef.current = false;
     if (!sourceId) return;
 
     const nodeElFromPath = event.composedPath?.().find((el) => el?.classList?.contains?.("react-flow__node"));
@@ -509,6 +543,7 @@ function AppInner() {
             setSelectedNodeId(null);
             setAssetMenuOpen(false);
           }}
+          deleteKeyCode={["Delete", "Backspace"]}
           fitView
         >
           <Background />

@@ -3,9 +3,9 @@ import { NODE_DEFS, META } from "../workflow/nodeDefinitions.js";
 import {
   buildOutputsMapFromNodes,
   gatherIncomingVars,
-  renderTemplate,
   previewOf,
 } from "../workflow/runner.js";
+import { buildJsonResponsePrompt, extractVarKeys } from "../workflow/promptComposer.js";
 
 function Field({ field, value, onChange, capability }) {
   if (field.type === "capabilitySelect") {
@@ -102,9 +102,9 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
   };
 
   const copyRenderedPrompt = async () => {
-    const prompt = renderTemplate(cfg.promptTemplate || "", incomingVars);
+    const prompt = buildJsonResponsePrompt(cfg.promptTemplate || "", incomingVars);
     await navigator.clipboard.writeText(prompt);
-    alert("프롬프트를 클립보드에 복사했습니다.");
+    alert("JSON 스키마 응답용 프롬프트를 클립보드에 복사했습니다.");
   };
 
   const applyInputAsOutput = () => {
@@ -243,6 +243,10 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
           <div className="h2">업스트림 변수(참고)</div>
           <div className="card small" style={{ whiteSpace: "pre-wrap" }}>
             {Object.keys(incomingVars).length ? JSON.stringify(incomingVars, null, 2) : "(없음) - Input/Asset/이전 노드를 연결하세요."}
+          </div>
+          <div className="small" style={{ marginTop: 6 }}>
+            사용법: 프롬프트 템플릿에서 {"{{a}}"}, {"{{b}}"}처럼 키를 사용하면 연결된 노드의 저장값이 자동 치환됩니다.
+            현재 사용 가능한 키: {extractVarKeys(incomingVars).join(", ") || "없음"}
           </div>
 
           <div className="h2">수동 결과 입력</div>
