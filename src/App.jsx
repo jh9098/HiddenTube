@@ -15,6 +15,7 @@ import NodePalette from "./components/NodePalette.jsx";
 import Inspector from "./components/Inspector.jsx";
 import RunTimeline from "./components/RunTimeline.jsx";
 import ArtifactsPanel from "./components/ArtifactsPanel.jsx";
+import ApiKeysModal from "./components/ApiKeysModal.jsx";
 
 import InputNode from "./nodes/InputNode.jsx";
 import GenerateNode from "./nodes/GenerateNode.jsx";
@@ -30,6 +31,8 @@ import {
   previewOf,
   nowHHMMSS,
 } from "./workflow/runner.js";
+
+import { loadApiKeys, saveApiKeys } from "./workflow/apiKeys.js";
 
 const STORAGE_KEY = "opal_mvp_workflow_v3";
 
@@ -111,8 +114,12 @@ function AppInner() {
   const [runs, setRuns] = useState([]);
   const [currentRunId, setCurrentRunId] = useState("");
 
-  // Left tabs: Nodes / Artifacts
+  // Left tabs
   const [leftTab, setLeftTab] = useState("nodes");
+
+  // ✅ API Keys
+  const [apiKeys, setApiKeys] = useState(() => loadApiKeys());
+  const [apiKeysOpen, setApiKeysOpen] = useState(false);
 
   const patchNodeData = useCallback(
     (nodeId, patch) => {
@@ -153,7 +160,6 @@ function AppInner() {
     [rf, setNodes]
   );
 
-  // ===== Run 생성 =====
   const startRun = useCallback(() => {
     let order = [];
     try {
@@ -181,8 +187,6 @@ function AppInner() {
 
     setRuns((prev) => [run, ...prev]);
     setCurrentRunId(runId);
-
-    // 첫 step 자동 선택
     if (order[0]) setSelectedNodeId(order[0]);
   }, [nodes, edges, runs.length]);
 
@@ -195,11 +199,9 @@ function AppInner() {
 
   const selectNode = useCallback((nodeId) => {
     setSelectedNodeId(nodeId);
-    // 노드 위치로 이동
     rf.setCenter(rf.getNode(nodeId)?.position?.x ?? 0, rf.getNode(nodeId)?.position?.y ?? 0, { zoom: 1.0 });
   }, [rf]);
 
-  // ===== Done -> 다음 TODO 자동 포커스 =====
   const focusNextTodoStep = useCallback((runId, justDoneStepId) => {
     const run = runs.find((r) => r.id === runId);
     if (!run) return;
@@ -207,14 +209,12 @@ function AppInner() {
     const idx = run.steps.findIndex((s) => s.stepId === justDoneStepId);
     if (idx < 0) return;
 
-    // 다음 step 중 todo 우선
     for (let i = idx + 1; i < run.steps.length; i++) {
       if (run.steps[i].status === "todo") {
         selectNode(run.steps[i].nodeId);
         return;
       }
     }
-    // 없으면 처음부터 todo 찾기
     const firstTodo = run.steps.find((s) => s.status === "todo");
     if (firstTodo) selectNode(firstTodo.nodeId);
   }, [runs, selectNode]);
@@ -251,17 +251,11 @@ function AppInner() {
         })
       );
 
-      // 노드 status도 반영
       const run = runs.find((r) => r.id === runId);
       const step = run?.steps.find((s) => s.stepId === stepId);
       if (step?.nodeId) patchNodeData(step.nodeId, { status });
 
-      // ✅ Done 시 다음 노드 자동 포커스
-      if (status === "done") {
-        // setRuns 비동기라 runs의 최신 반영 전이지만,
-        // "다음 todo 찾기"는 기존 구조에서도 충분히 유효(방금 done 처리한 step 기준)
-        focusNextTodoStep(runId, stepId);
-      }
+      if (status === "done") focusNextTodoStep(runId, stepId);
     },
     [runs, nodes, patchNodeData, focusNextTodoStep]
   );
@@ -282,7 +276,6 @@ function AppInner() {
     [nodes, edges]
   );
 
-  // ===== 저장/불러오기 =====
   const saveAll = useCallback(() => {
     const json = serializeAll(nodes, edges, runs, currentRunId);
     localStorage.setItem(STORAGE_KEY, json);
@@ -346,12 +339,25 @@ function AppInner() {
     alert("Output 노드에 upstream 결과를 final로 반영했습니다.");
   }, [nodes, edges, patchNodeData]);
 
+  // ✅ API Keys 저장/로드
+  const openApiKeys = () => setApiKeysOpen(true);
+  const closeApiKeys = () => setApiKeysOpen(false);
+  const saveApiKeysAndState = (next) => {
+    setApiKeys(next);
+    saveApiKeys(next);
+    alert("API Keys 저장 완료(localStorage).");
+  };
+
   return (
     <div className="app">
       <div className="topbar">
         <div className="brand">YouTube Workflow MVP (Manual+Assets)</div>
 
         <button className="btn primary" onClick={startRun}>Start Run</button>
+
+        <div className="sep" />
+
+        <button className="btn" onClick={openApiKeys}>API Keys</button>
 
         <div className="sep" />
 
@@ -390,9 +396,9 @@ function AppInner() {
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onDragOver={onDragOver}
-          onDrop={onDrop}
+          onConnect={(params) => onConnect(params)}
+          onDragOver={(e) => onDragOver(e)}
+          onDrop={(e) => onDrop(e)}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
           onPaneClick={() => setSelectedNodeId(null)}
           fitView
@@ -420,6 +426,13 @@ function AppInner() {
           onClearRuns={clearRuns}
         />
       </div>
+
+      <ApiKeysModal
+        open={apiKeysOpen}
+        keysObj={apiKeys}
+        onClose={closeApiKeys}
+        onSave={saveApiKeysAndState}
+      />
     </div>
   );
 }
