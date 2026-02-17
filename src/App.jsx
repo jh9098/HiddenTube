@@ -4,7 +4,6 @@ import ReactFlow, {
   addEdge,
   Background,
   Controls,
-  MiniMap,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -513,7 +512,6 @@ function AppInner() {
           fitView
         >
           <Background />
-          <MiniMap />
           <Controls />
         </ReactFlow>
       </div>
