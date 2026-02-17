@@ -123,7 +123,6 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
     const outKey = (cfg.outputKey || "").trim() || "result";
     const payload = {};
 
-    // 텍스트/URL/파일명 모두 변수로 제공
     if (cfg.manualText?.trim()) payload[outKey] = cfg.manualText.trim();
     if (cfg.manualUrl?.trim()) payload[`${outKey}_url`] = cfg.manualUrl.trim();
     if (cfg.manualFileName?.trim()) payload[`${outKey}_file`] = cfg.manualFileName.trim();
@@ -142,10 +141,11 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
   const applyAssetToOutput = () => {
     const key = (cfg.assetKey || "").trim() || "asset";
     const payload = {};
+
     if (cfg.url?.trim()) payload[`${key}_url`] = cfg.url.trim();
     if (cfg.text?.trim()) payload[`${key}_text`] = cfg.text.trim();
     if (cfg.fileName?.trim()) payload[`${key}_file`] = cfg.fileName.trim();
-    // 메타도 같이 내려줌
+
     payload[`${key}_meta`] = {
       title: cfg.title || "",
       source: cfg.source || "",
@@ -168,7 +168,6 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
     nextCfg.modelId = models[0] || "Custom";
     nextCfg.outputKey = META.defaultOutputKeyByCapability[nextCap] || "result";
 
-    // 자동 채우되, 사용자가 이미 작성한 내용이 있으면 덮어쓰지 않음(자유도 보장)
     if (!nextCfg.todo || nextCfg.todo.trim().length === 0) {
       nextCfg.todo = META.defaultTodoByCapability[nextCap] || "";
     }
@@ -177,6 +176,8 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
     }
     onPatchNodeData(selectedNode.id, { config: nextCfg });
   };
+
+  const isAssetYoutube = selectedNode.data.type === "asset" && (cfg.source === "youtube");
 
   return (
     <div>
@@ -207,7 +208,6 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
               capability={capability}
               value={cfg[f.name]}
               onChange={(val) => {
-                // capability 변경 시 기본값 로딩(단, 기존 작성이 있으면 유지)
                 if (selectedNode.data.type === "generate" && f.name === "capability") {
                   onCapabilityChanged(val);
                   return;
@@ -230,7 +230,7 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
         <>
           <div className="h2">Input → Output 적용</div>
           <div className="card">
-            <div className="small">Input은 기본적으로 변수로 내려가야 하므로, 아래 버튼으로 output에 반영하세요.</div>
+            <div className="small">Input은 변수로 내려가야 하므로, 아래 버튼으로 output에 반영하세요.</div>
             <div style={{ marginTop: 8 }}>
               <button className="btn primary" onClick={applyInputAsOutput}>Apply Input as Output</button>
             </div>
@@ -286,77 +286,3 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
               </div>
               {fileObjectUrl ? (
                 <div className="small" style={{ marginTop: 6 }}>
-                  미리보기(세션 한정): <a href={fileObjectUrl} target="_blank" rel="noreferrer">open</a>
-                </div>
-              ) : null}
-            </div>
-
-            <button className="btn primary" onClick={applyGenerateManualToOutput}>
-              Apply to Output + Mark Done
-            </button>
-          </div>
-        </>
-      ) : null}
-
-      {selectedNode.data.type === "asset" ? (
-        <>
-          <div className="h2">Asset 값</div>
-          <div className="card">
-            <div className="field">
-              <div className="label">URL</div>
-              <input
-                className="input"
-                value={cfg.url || ""}
-                onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, url: e.target.value } })}
-                placeholder="YouTube/Drive/외부 링크"
-              />
-            </div>
-
-            <div className="field">
-              <div className="label">Text</div>
-              <textarea
-                className="textarea"
-                value={cfg.text || ""}
-                onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, text: e.target.value } })}
-                placeholder="외부자료 요약/메모/스크립트 등"
-              />
-            </div>
-
-            <div className="field">
-              <div className="label">파일(메타 저장 + 세션 미리보기)</div>
-              <input
-                className="input"
-                type="file"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
-                  const url = URL.createObjectURL(f);
-                  setFileObjectUrl(url);
-                  onPatchNodeData(selectedNode.id, { config: { ...cfg, fileName: f.name } });
-                }}
-              />
-              <div className="small" style={{ marginTop: 6 }}>
-                선택됨: <b style={{ color: "#e8e8ea" }}>{cfg.fileName || "(없음)"}</b>
-              </div>
-              {fileObjectUrl ? (
-                <div className="small" style={{ marginTop: 6 }}>
-                  미리보기(세션 한정): <a href={fileObjectUrl} target="_blank" rel="noreferrer">open</a>
-                </div>
-              ) : null}
-            </div>
-
-            <button className="btn primary" onClick={applyAssetToOutput}>
-              Apply Asset as Output + Mark Done
-            </button>
-          </div>
-        </>
-      ) : null}
-
-      <div className="h2">출력 프리뷰</div>
-      <div className="card small" style={{ whiteSpace: "pre-wrap" }}>
-        {selectedNode.data.outputPreview || "(아직 없음)"}
-      </div>
-    </div>
-  );
-}
