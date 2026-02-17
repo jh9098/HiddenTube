@@ -24,10 +24,10 @@ export default function RunTimeline({
     if (!current) return [];
     return current.steps.map((s) => {
       const node = nodes.find((n) => n.id === s.nodeId);
-      const role = node?.data?.config?.roleType || "";
+      const cap = node?.data?.config?.capability || "";
       const model = node?.data?.config?.modelId || "";
       const label = node?.data?.label || "Node";
-      return { ...s, label, role, model };
+      return { ...s, label, cap, model };
     });
   }, [current, nodes]);
 
@@ -69,14 +69,14 @@ export default function RunTimeline({
       </div>
 
       <div className="h2">Steps</div>
-      <div className="card" style={{ maxHeight: 160, overflow: "auto" }}>
+      <div className="card" style={{ maxHeight: 170, overflow: "auto" }}>
         {current ? (
           stepRows.map((s, idx) => (
             <div
               key={s.stepId}
               style={{
                 display: "grid",
-                gridTemplateColumns: "32px 1fr 160px 1fr 260px",
+                gridTemplateColumns: "32px 1fr 150px 1fr 260px",
                 gap: 10,
                 padding: "8px 0",
                 borderBottom: "1px dashed rgba(255,255,255,0.08)",
@@ -89,7 +89,7 @@ export default function RunTimeline({
                 <span className={`dot ${dotClass(s.status)}`}></span>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 800 }}>{s.label}</div>
-                  <div className="small">{s.role ? `역할: ${s.role}` : ""} {s.model ? `· 모델: ${s.model}` : ""}</div>
+                  <div className="small">{s.cap ? `cap: ${s.cap}` : ""} {s.model ? `· model: ${s.model}` : ""}</div>
                 </div>
               </div>
 
