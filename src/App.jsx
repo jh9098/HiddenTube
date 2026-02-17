@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import ReactFlow, {
+  ReactFlowProvider,
   addEdge,
   Background,
   Controls,
@@ -12,89 +13,94 @@ import { nanoid } from "nanoid";
 
 import NodePalette from "./components/NodePalette.jsx";
 import Inspector from "./components/Inspector.jsx";
+import RunTimeline from "./components/RunTimeline.jsx";
+
 import InputNode from "./nodes/InputNode.jsx";
 import GenerateNode from "./nodes/GenerateNode.jsx";
 import OutputNode from "./nodes/OutputNode.jsx";
 
 import { makeNodeData } from "./workflow/nodeDefinitions.js";
-import { runWorkflow } from "./workflow/runner.js";
+import { topoSort, buildOutputsMapFromNodes, gatherIncomingVars, renderTemplate, previewOf, nowHHMMSS } from "./workflow/runner.js";
 
-const STORAGE_KEY = "opal_mvp_workflow_v1";
+const STORAGE_KEY = "opal_mvp_workflow_v2";
 
 function makeInitial() {
-  // 기본 예시 플로우 1개를 깔아줌 (Input -> Generate -> Output)
+  // 기본 예시: Input(topic) -> Research -> Text -> Output
   const n1 = {
     id: nanoid(),
     type: "inputNode",
-    position: { x: 80, y: 120 },
+    position: { x: 60, y: 160 },
     data: makeNodeData("input"),
   };
+  n1.data.config.key = "topic";
+  n1.data.config.value = "경제 뉴스 요약(쇼츠용)";
+
   const n2 = {
     id: nanoid(),
     type: "generateNode",
-    position: { x: 420, y: 110 },
+    position: { x: 380, y: 120 },
     data: makeNodeData("generate"),
   };
+  n2.data.config.roleType = "research";
+
   const n3 = {
     id: nanoid(),
+    type: "generateNode",
+    position: { x: 700, y: 120 },
+    data: makeNodeData("generate"),
+  };
+  n3.data.config.roleType = "text";
+
+  const n4 = {
+    id: nanoid(),
     type: "outputNode",
-    position: { x: 820, y: 120 },
+    position: { x: 1020, y: 160 },
     data: makeNodeData("output"),
   };
 
-  // input 기본키에 맞춰 generate가 템플릿 변수를 쓸 수 있게 target도 하나 더 추가
-  // (input을 하나 더 만들지 않고, generate가 renderTemplate에서 빈값 처리하긴 함)
-  n1.data.config.key = "topic";
-  n1.data.config.value = "보험/경제 이슈 요약";
-  n2.data.config.promptTemplate =
-    "주제: {{topic}}\n\n위 주제로 20초 쇼츠 대본을 만들어줘.\n- 훅 1줄\n- 포인트 3개\n- 마지막 CTA 1줄";
-
   const e1 = { id: nanoid(), source: n1.id, target: n2.id };
   const e2 = { id: nanoid(), source: n2.id, target: n3.id };
-  return { nodes: [n1, n2, n3], edges: [e1, e2] };
+  const e3 = { id: nanoid(), source: n3.id, target: n4.id };
+
+  return { nodes: [n1, n2, n3, n4], edges: [e1, e2, e3] };
 }
 
 function stripRuntimeFields(node) {
-  // 저장할 때 실행 상태/출력은 빼도 되고, 남겨도 됨.
-  // MVP에선 남기되, status는 idle로 초기화해 저장.
-  return {
-    ...node,
-    data: {
-      ...node.data,
-      status: "idle",
-      lastError: "",
-      // output/outputPreview는 저장해도 되지만, 깔끔하게 비움
-      output: null,
-      outputPreview: "",
-    },
-  };
+  // 저장: output은 저장(수동 결과 유지), status는 유지
+  return node;
 }
 
-function serializeWorkflow(nodes, edges) {
+function serializeAll(nodes, edges, runs, currentRunId) {
   return JSON.stringify(
     {
-      version: 1,
+      version: 2,
       nodes: nodes.map(stripRuntimeFields),
       edges,
+      runs,
+      currentRunId,
     },
     null,
     2
   );
 }
 
-function deserializeWorkflow(text) {
+function deserializeAll(text) {
   const obj = JSON.parse(text);
   if (!obj || !Array.isArray(obj.nodes) || !Array.isArray(obj.edges)) {
-    throw new Error("잘못된 워크플로우 JSON 형식입니다.");
+    throw new Error("잘못된 저장 형식입니다.");
   }
-  return { nodes: obj.nodes, edges: obj.edges };
+  return {
+    nodes: obj.nodes,
+    edges: obj.edges,
+    runs: Array.isArray(obj.runs) ? obj.runs : [],
+    currentRunId: obj.currentRunId || "",
+  };
 }
 
 function AppInner() {
   const rf = useReactFlow();
-  const abortRef = useRef(null);
-
   const initial = useMemo(() => makeInitial(), []);
+
   const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
 
@@ -113,17 +119,9 @@ function AppInner() {
     [nodes, selectedNodeId]
   );
 
-  const [logs, setLogs] = useState([]);
-  const [running, setRunning] = useState(false);
-
-  const log = useCallback((line) => {
-    setLogs((prev) => {
-      const next = [...prev, line];
-      // 너무 길어지면 잘라냄
-      if (next.length > 200) return next.slice(next.length - 200);
-      return next;
-    });
-  }, []);
+  // Run 타임라인(세션)
+  const [runs, setRuns] = useState([]);
+  const [currentRunId, setCurrentRunId] = useState("");
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, id: nanoid() }, eds)),
@@ -166,133 +164,224 @@ function AppInner() {
     [rf, setNodes]
   );
 
-  const patchNodeData = useCallback((nodeId, patch) => {
-    setNodes((nds) =>
-      nds.map((n) => {
-        if (n.id !== nodeId) return n;
-        return { ...n, data: { ...n.data, ...patch } };
-      })
-    );
-  }, [setNodes]);
+  const patchNodeData = useCallback(
+    (nodeId, patch) => {
+      setNodes((nds) =>
+        nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n))
+      );
+    },
+    [setNodes]
+  );
 
-  const resetRunState = useCallback(() => {
-    setNodes((nds) =>
-      nds.map((n) => ({
-        ...n,
-        data: { ...n.data, status: "idle", lastError: "", output: null, outputPreview: "" },
-      }))
-    );
-  }, [setNodes]);
-
-  const handleRun = useCallback(async () => {
-    if (running) return;
-    setRunning(true);
-    setLogs([]);
-    resetRunState();
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
+  // ===== Run (세션) 생성 =====
+  const startRun = useCallback(() => {
+    let order = [];
     try {
-      const result = await runWorkflow({
-        nodes,
-        edges,
-        signal: controller.signal,
-        onLog: log,
-        onStepStatus: (nodeId, patch) => patchNodeData(nodeId, patch),
-      });
-
-      log(`✅ DONE. final=${result ? JSON.stringify(result).slice(0, 200) : "null"}`);
+      order = topoSort(nodes, edges);
     } catch (e) {
-      log(`❌ FAIL. ${e?.message || String(e)}`);
-    } finally {
-      setRunning(false);
-      abortRef.current = null;
+      alert(e?.message || String(e));
+      return;
     }
-  }, [running, nodes, edges, log, patchNodeData, resetRunState]);
 
-  const handleStop = useCallback(() => {
-    if (abortRef.current) abortRef.current.abort();
+    const runId = nanoid();
+    const run = {
+      id: runId,
+      title: `Run #${runs.length + 1}`,
+      createdAt: Date.now(),
+      steps: order.map((nodeId) => ({
+        stepId: nanoid(),
+        nodeId,
+        status: "todo", // todo | doing | done
+        doneAt: null,
+        snapshotPreview: "",
+        snapshotOutput: null,
+      })),
+      events: [
+        { id: nanoid(), time: nowHHMMSS(), text: `Run created (steps=${order.length})` },
+      ],
+    };
+
+    setRuns((prev) => [run, ...prev]);
+    setCurrentRunId(runId);
+  }, [nodes, edges, runs.length]);
+
+  const clearRuns = useCallback(() => {
+    setRuns([]);
+    setCurrentRunId("");
   }, []);
 
-  const handleClear = useCallback(() => {
-    setNodes([]);
-    setEdges([]);
-    setSelectedNodeId(null);
-    setLogs([]);
-  }, [setNodes, setEdges]);
+  const selectRun = useCallback((id) => {
+    setCurrentRunId(id);
+  }, []);
 
-  const handleSave = useCallback(() => {
-    const json = serializeWorkflow(nodes, edges);
+  const selectNode = useCallback((nodeId) => {
+    setSelectedNodeId(nodeId);
+    // 보기 편하게 fitView는 과격할 수 있어 센터링만 가볍게
+    // (fitView는 전체를 맞추는 동작이라 사용자 의도 깨질 수 있음)
+  }, []);
+
+  const markStep = useCallback(
+    (runId, stepId, status) => {
+      setRuns((prev) =>
+        prev.map((r) => {
+          if (r.id !== runId) return r;
+
+          const nodeForStep = (step) => nodes.find((n) => n.id === step.nodeId);
+
+          const nextSteps = r.steps.map((s) => {
+            if (s.stepId !== stepId) return s;
+
+            // 완료 시 노드 output을 스냅샷으로 저장
+            const node = nodeForStep(s);
+            const snapOut = node?.data?.output || null;
+            const snapPrev = node?.data?.outputPreview || "";
+
+            return {
+              ...s,
+              status,
+              doneAt: status === "done" ? Date.now() : null,
+              snapshotOutput: status === "done" ? snapOut : null,
+              snapshotPreview: status === "done" ? snapPrev : "",
+            };
+          });
+
+          const evText = `Step ${stepId.slice(0, 6)} -> ${status}`;
+          return {
+            ...r,
+            steps: nextSteps,
+            events: [{ id: nanoid(), time: nowHHMMSS(), text: evText }, ...r.events],
+          };
+        })
+      );
+
+      // 노드 status도 함께 반영(작업 진행 느낌)
+      const step = runs.find((r) => r.id === runId)?.steps.find((s) => s.stepId === stepId);
+      if (step?.nodeId) {
+        patchNodeData(step.nodeId, { status });
+      }
+    },
+    [runs, nodes, patchNodeData]
+  );
+
+  const copyStepPrompt = useCallback(
+    async (nodeId) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node || node.data.type !== "generate") {
+        alert("이 노드에는 프롬프트가 없습니다.");
+        return;
+      }
+
+      // 업스트림 결과 병합 → 템플릿 렌더
+      const outputsMap = buildOutputsMapFromNodes(nodes);
+      const vars = gatherIncomingVars(nodeId, edges, outputsMap);
+      const prompt = renderTemplate(node.data.config?.promptTemplate, vars);
+
+      await navigator.clipboard.writeText(prompt);
+      alert("프롬프트를 클립보드에 복사했습니다.");
+    },
+    [nodes, edges]
+  );
+
+  // ===== 저장/불러오기 =====
+  const saveAll = useCallback(() => {
+    const json = serializeAll(nodes, edges, runs, currentRunId);
     localStorage.setItem(STORAGE_KEY, json);
-    log("💾 Saved to localStorage");
-  }, [nodes, edges, log]);
+    alert("저장 완료(localStorage).");
+  }, [nodes, edges, runs, currentRunId]);
 
-  const handleLoad = useCallback(() => {
+  const loadAll = useCallback(() => {
     const text = localStorage.getItem(STORAGE_KEY);
     if (!text) {
-      log("ℹ️ No saved workflow in localStorage");
+      alert("저장된 데이터가 없습니다.");
       return;
     }
     try {
-      const { nodes: n, edges: e } = deserializeWorkflow(text);
+      const { nodes: n, edges: e, runs: rr, currentRunId: cr } = deserializeAll(text);
       setNodes(n);
       setEdges(e);
+      setRuns(rr);
+      setCurrentRunId(cr || "");
       setSelectedNodeId(null);
-      setLogs([]);
-      log("📦 Loaded from localStorage");
+      alert("불러오기 완료.");
     } catch (err) {
-      log(`❌ Load error: ${err?.message || String(err)}`);
+      alert(`불러오기 실패: ${err?.message || String(err)}`);
     }
-  }, [setNodes, setEdges, log]);
+  }, [setNodes, setEdges]);
 
-  const handleExport = useCallback(async () => {
-    const json = serializeWorkflow(nodes, edges);
+  const exportAll = useCallback(async () => {
+    const json = serializeAll(nodes, edges, runs, currentRunId);
     await navigator.clipboard.writeText(json);
-    log("📋 Export JSON copied to clipboard");
-  }, [nodes, edges, log]);
+    alert("Export JSON을 클립보드에 복사했습니다.");
+  }, [nodes, edges, runs, currentRunId]);
 
-  const handleImport = useCallback(() => {
-    const text = prompt("붙여넣을 워크플로우 JSON을 입력하세요:");
+  const importAll = useCallback(() => {
+    const text = prompt("붙여넣을 JSON을 입력하세요:");
     if (!text) return;
     try {
-      const { nodes: n, edges: e } = deserializeWorkflow(text);
+      const { nodes: n, edges: e, runs: rr, currentRunId: cr } = deserializeAll(text);
       setNodes(n);
       setEdges(e);
+      setRuns(rr);
+      setCurrentRunId(cr || "");
       setSelectedNodeId(null);
-      setLogs([]);
-      log("📥 Imported workflow JSON");
+      alert("Import 완료.");
     } catch (err) {
-      log(`❌ Import error: ${err?.message || String(err)}`);
+      alert(`Import 실패: ${err?.message || String(err)}`);
     }
-  }, [setNodes, setEdges, log]);
+  }, [setNodes, setEdges]);
 
-  const handleFitView = useCallback(() => {
+  const clearWorkflow = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+    setSelectedNodeId(null);
+  }, [setNodes, setEdges]);
+
+  const fitView = useCallback(() => {
     rf.fitView({ padding: 0.2 });
   }, [rf]);
+
+  // output 노드에 "최종 결과"를 수동으로 만들어 넣고 싶을 때 편의 버튼
+  const buildFinalFromLastGenerate = useCallback(() => {
+    const outputNodes = nodes.filter((n) => n.data.type === "output");
+    if (!outputNodes.length) {
+      alert("Output 노드가 없습니다.");
+      return;
+    }
+    const outNode = outputNodes[outputNodes.length - 1];
+
+    // output으로 들어오는 변수 = upstream merge
+    const outputsMap = buildOutputsMapFromNodes(nodes);
+    const incoming = gatherIncomingVars(outNode.id, edges, outputsMap);
+
+    // Output 노드에 final로 저장
+    patchNodeData(outNode.id, {
+      output: { final: JSON.stringify(incoming, null, 2) },
+      outputPreview: previewOf(incoming),
+      status: "done",
+    });
+
+    alert("Output 노드에 upstream 결과를 final로 반영했습니다.");
+  }, [nodes, edges, patchNodeData]);
 
   return (
     <div className="app">
       <div className="topbar">
-        <div className="brand">Opal-like MVP</div>
-        <button className="btn primary" onClick={handleRun} disabled={running}>Run</button>
-        <button className="btn" onClick={handleStop} disabled={!running}>Stop</button>
+        <div className="brand">YouTube Workflow MVP (Manual)</div>
+
+        <button className="btn primary" onClick={startRun}>Start Run</button>
 
         <div className="sep" />
 
-        <button className="btn" onClick={handleSave}>Save</button>
-        <button className="btn" onClick={handleLoad}>Load</button>
-        <button className="btn" onClick={handleExport}>Export JSON</button>
-        <button className="btn" onClick={handleImport}>Import JSON</button>
+        <button className="btn" onClick={saveAll}>Save</button>
+        <button className="btn" onClick={loadAll}>Load</button>
+        <button className="btn" onClick={exportAll}>Export</button>
+        <button className="btn" onClick={importAll}>Import</button>
 
         <div className="sep" />
 
-        <button className="btn" onClick={handleFitView}>Fit View</button>
-        <button className="btn danger" onClick={handleClear}>Clear</button>
-
-        <div style={{ marginLeft: "auto" }} className="small">
-          {running ? "RUNNING..." : "READY"}
-        </div>
+        <button className="btn" onClick={fitView}>Fit View</button>
+        <button className="btn" onClick={buildFinalFromLastGenerate}>Build Final(Output)</button>
+        <button className="btn danger" onClick={clearWorkflow}>Clear Workflow</button>
       </div>
 
       <div className="left">
@@ -320,30 +409,32 @@ function AppInner() {
       </div>
 
       <div className="right">
-        <Inspector selectedNode={selectedNode} onPatchNodeData={patchNodeData} />
+        <Inspector
+          selectedNode={selectedNode}
+          nodes={nodes}
+          edges={edges}
+          onPatchNodeData={patchNodeData}
+        />
       </div>
 
       <div className="bottom">
-        <div className="h1">실행 로그</div>
-        <div className="card" style={{ maxHeight: 140, overflow: "auto" }}>
-          {logs.length === 0 ? (
-            <div className="small">Run을 누르면 로그가 표시됩니다.</div>
-          ) : (
-            logs.map((l, i) => <div className="logLine" key={i}>{l}</div>)
-          )}
-        </div>
-        <div className="small" style={{ marginTop: 8 }}>
-          * 현재 MVP는 LLM 호출/업로드를 “모의 실행”합니다. 다음 단계에서 실제 Gemini/YouTube 연동을 붙입니다.
-        </div>
+        <RunTimeline
+          runs={runs}
+          currentRunId={currentRunId}
+          nodes={nodes}
+          onSelectRun={selectRun}
+          onSelectNode={selectNode}
+          onStartRun={startRun}
+          onMarkStep={markStep}
+          onCopyStepPrompt={copyStepPrompt}
+          onClearRuns={clearRuns}
+        />
       </div>
     </div>
   );
 }
 
 export default function App() {
-  // useReactFlow를 쓰려면 ReactFlowProvider를 감싸야 함
-  // (ReactFlow 컴포넌트 내부에서 훅을 쓰는 구조라 Provider를 최상단에 둠)
-  const ReactFlowProvider = require("reactflow").ReactFlowProvider;
   return (
     <ReactFlowProvider>
       <AppInner />
