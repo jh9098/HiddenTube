@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import ReactFlow, {
   ReactFlowProvider,
   addEdge,
@@ -14,18 +14,26 @@ import { nanoid } from "nanoid";
 import NodePalette from "./components/NodePalette.jsx";
 import Inspector from "./components/Inspector.jsx";
 import RunTimeline from "./components/RunTimeline.jsx";
+import ArtifactsPanel from "./components/ArtifactsPanel.jsx";
 
 import InputNode from "./nodes/InputNode.jsx";
 import GenerateNode from "./nodes/GenerateNode.jsx";
+import AssetNode from "./nodes/AssetNode.jsx";
 import OutputNode from "./nodes/OutputNode.jsx";
 
 import { makeNodeData } from "./workflow/nodeDefinitions.js";
-import { topoSort, buildOutputsMapFromNodes, gatherIncomingVars, renderTemplate, previewOf, nowHHMMSS } from "./workflow/runner.js";
+import {
+  topoSort,
+  buildOutputsMapFromNodes,
+  gatherIncomingVars,
+  renderTemplate,
+  previewOf,
+  nowHHMMSS,
+} from "./workflow/runner.js";
 
-const STORAGE_KEY = "opal_mvp_workflow_v2";
+const STORAGE_KEY = "opal_mvp_workflow_v3";
 
 function makeInitial() {
-  // 기본 예시: Input(topic) -> Research -> Text -> Output
   const n1 = {
     id: nanoid(),
     type: "inputNode",
@@ -33,7 +41,7 @@ function makeInitial() {
     data: makeNodeData("input"),
   };
   n1.data.config.key = "topic";
-  n1.data.config.value = "경제 뉴스 요약(쇼츠용)";
+  n1.data.config.value = "경제 뉴스 쇼츠";
 
   const n2 = {
     id: nanoid(),
@@ -41,7 +49,7 @@ function makeInitial() {
     position: { x: 380, y: 120 },
     data: makeNodeData("generate"),
   };
-  n2.data.config.roleType = "research";
+  n2.data.config.capability = "research";
 
   const n3 = {
     id: nanoid(),
@@ -49,7 +57,7 @@ function makeInitial() {
     position: { x: 700, y: 120 },
     data: makeNodeData("generate"),
   };
-  n3.data.config.roleType = "text";
+  n3.data.config.capability = "text";
 
   const n4 = {
     id: nanoid(),
@@ -65,30 +73,12 @@ function makeInitial() {
   return { nodes: [n1, n2, n3, n4], edges: [e1, e2, e3] };
 }
 
-function stripRuntimeFields(node) {
-  // 저장: output은 저장(수동 결과 유지), status는 유지
-  return node;
-}
-
 function serializeAll(nodes, edges, runs, currentRunId) {
-  return JSON.stringify(
-    {
-      version: 2,
-      nodes: nodes.map(stripRuntimeFields),
-      edges,
-      runs,
-      currentRunId,
-    },
-    null,
-    2
-  );
+  return JSON.stringify({ version: 3, nodes, edges, runs, currentRunId }, null, 2);
 }
-
 function deserializeAll(text) {
   const obj = JSON.parse(text);
-  if (!obj || !Array.isArray(obj.nodes) || !Array.isArray(obj.edges)) {
-    throw new Error("잘못된 저장 형식입니다.");
-  }
+  if (!obj || !Array.isArray(obj.nodes) || !Array.isArray(obj.edges)) throw new Error("잘못된 형식");
   return {
     nodes: obj.nodes,
     edges: obj.edges,
@@ -108,20 +98,28 @@ function AppInner() {
     () => ({
       inputNode: InputNode,
       generateNode: GenerateNode,
+      assetNode: AssetNode,
       outputNode: OutputNode,
     }),
     []
   );
 
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const selectedNode = useMemo(
-    () => nodes.find((n) => n.id === selectedNodeId) || null,
-    [nodes, selectedNodeId]
-  );
+  const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
 
-  // Run 타임라인(세션)
+  // Runs
   const [runs, setRuns] = useState([]);
   const [currentRunId, setCurrentRunId] = useState("");
+
+  // Left tabs: Nodes / Artifacts
+  const [leftTab, setLeftTab] = useState("nodes");
+
+  const patchNodeData = useCallback(
+    (nodeId, patch) => {
+      setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n)));
+    },
+    [setNodes]
+  );
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, id: nanoid() }, eds)),
@@ -139,41 +137,23 @@ function AppInner() {
       const type = event.dataTransfer.getData("application/reactflow");
       if (!type) return;
 
-      const position = rf.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
+      const position = rf.screenToFlowPosition({ x: event.clientX, y: event.clientY });
       const id = nanoid();
 
       let flowType = "generateNode";
       if (type === "input") flowType = "inputNode";
       if (type === "generate") flowType = "generateNode";
+      if (type === "asset") flowType = "assetNode";
       if (type === "output") flowType = "outputNode";
 
-      const newNode = {
-        id,
-        type: flowType,
-        position,
-        data: makeNodeData(type),
-      };
-
+      const newNode = { id, type: flowType, position, data: makeNodeData(type) };
       setNodes((nds) => nds.concat(newNode));
       setSelectedNodeId(id);
     },
     [rf, setNodes]
   );
 
-  const patchNodeData = useCallback(
-    (nodeId, patch) => {
-      setNodes((nds) =>
-        nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n))
-      );
-    },
-    [setNodes]
-  );
-
-  // ===== Run (세션) 생성 =====
+  // ===== Run 생성 =====
   const startRun = useCallback(() => {
     let order = [];
     try {
@@ -191,18 +171,19 @@ function AppInner() {
       steps: order.map((nodeId) => ({
         stepId: nanoid(),
         nodeId,
-        status: "todo", // todo | doing | done
+        status: "todo",
         doneAt: null,
         snapshotPreview: "",
         snapshotOutput: null,
       })),
-      events: [
-        { id: nanoid(), time: nowHHMMSS(), text: `Run created (steps=${order.length})` },
-      ],
+      events: [{ id: nanoid(), time: nowHHMMSS(), text: `Run created (steps=${order.length})` }],
     };
 
     setRuns((prev) => [run, ...prev]);
     setCurrentRunId(runId);
+
+    // 첫 step 자동 선택
+    if (order[0]) setSelectedNodeId(order[0]);
   }, [nodes, edges, runs.length]);
 
   const clearRuns = useCallback(() => {
@@ -210,15 +191,33 @@ function AppInner() {
     setCurrentRunId("");
   }, []);
 
-  const selectRun = useCallback((id) => {
-    setCurrentRunId(id);
-  }, []);
+  const selectRun = useCallback((id) => setCurrentRunId(id), []);
 
   const selectNode = useCallback((nodeId) => {
     setSelectedNodeId(nodeId);
-    // 보기 편하게 fitView는 과격할 수 있어 센터링만 가볍게
-    // (fitView는 전체를 맞추는 동작이라 사용자 의도 깨질 수 있음)
-  }, []);
+    // 노드 위치로 이동
+    rf.setCenter(rf.getNode(nodeId)?.position?.x ?? 0, rf.getNode(nodeId)?.position?.y ?? 0, { zoom: 1.0 });
+  }, [rf]);
+
+  // ===== Done -> 다음 TODO 자동 포커스 =====
+  const focusNextTodoStep = useCallback((runId, justDoneStepId) => {
+    const run = runs.find((r) => r.id === runId);
+    if (!run) return;
+
+    const idx = run.steps.findIndex((s) => s.stepId === justDoneStepId);
+    if (idx < 0) return;
+
+    // 다음 step 중 todo 우선
+    for (let i = idx + 1; i < run.steps.length; i++) {
+      if (run.steps[i].status === "todo") {
+        selectNode(run.steps[i].nodeId);
+        return;
+      }
+    }
+    // 없으면 처음부터 todo 찾기
+    const firstTodo = run.steps.find((s) => s.status === "todo");
+    if (firstTodo) selectNode(firstTodo.nodeId);
+  }, [runs, selectNode]);
 
   const markStep = useCallback(
     (runId, stepId, status) => {
@@ -231,7 +230,6 @@ function AppInner() {
           const nextSteps = r.steps.map((s) => {
             if (s.stepId !== stepId) return s;
 
-            // 완료 시 노드 output을 스냅샷으로 저장
             const node = nodeForStep(s);
             const snapOut = node?.data?.output || null;
             const snapPrev = node?.data?.outputPreview || "";
@@ -245,22 +243,27 @@ function AppInner() {
             };
           });
 
-          const evText = `Step ${stepId.slice(0, 6)} -> ${status}`;
           return {
             ...r,
             steps: nextSteps,
-            events: [{ id: nanoid(), time: nowHHMMSS(), text: evText }, ...r.events],
+            events: [{ id: nanoid(), time: nowHHMMSS(), text: `Step ${stepId.slice(0, 6)} -> ${status}` }, ...r.events],
           };
         })
       );
 
-      // 노드 status도 함께 반영(작업 진행 느낌)
-      const step = runs.find((r) => r.id === runId)?.steps.find((s) => s.stepId === stepId);
-      if (step?.nodeId) {
-        patchNodeData(step.nodeId, { status });
+      // 노드 status도 반영
+      const run = runs.find((r) => r.id === runId);
+      const step = run?.steps.find((s) => s.stepId === stepId);
+      if (step?.nodeId) patchNodeData(step.nodeId, { status });
+
+      // ✅ Done 시 다음 노드 자동 포커스
+      if (status === "done") {
+        // setRuns 비동기라 runs의 최신 반영 전이지만,
+        // "다음 todo 찾기"는 기존 구조에서도 충분히 유효(방금 done 처리한 step 기준)
+        focusNextTodoStep(runId, stepId);
       }
     },
-    [runs, nodes, patchNodeData]
+    [runs, nodes, patchNodeData, focusNextTodoStep]
   );
 
   const copyStepPrompt = useCallback(
@@ -270,12 +273,9 @@ function AppInner() {
         alert("이 노드에는 프롬프트가 없습니다.");
         return;
       }
-
-      // 업스트림 결과 병합 → 템플릿 렌더
       const outputsMap = buildOutputsMapFromNodes(nodes);
       const vars = gatherIncomingVars(nodeId, edges, outputsMap);
-      const prompt = renderTemplate(node.data.config?.promptTemplate, vars);
-
+      const prompt = renderTemplate(node.data.config?.promptTemplate || "", vars);
       await navigator.clipboard.writeText(prompt);
       alert("프롬프트를 클립보드에 복사했습니다.");
     },
@@ -291,10 +291,7 @@ function AppInner() {
 
   const loadAll = useCallback(() => {
     const text = localStorage.getItem(STORAGE_KEY);
-    if (!text) {
-      alert("저장된 데이터가 없습니다.");
-      return;
-    }
+    if (!text) return alert("저장된 데이터가 없습니다.");
     try {
       const { nodes: n, edges: e, runs: rr, currentRunId: cr } = deserializeAll(text);
       setNodes(n);
@@ -330,30 +327,16 @@ function AppInner() {
     }
   }, [setNodes, setEdges]);
 
-  const clearWorkflow = useCallback(() => {
-    setNodes([]);
-    setEdges([]);
-    setSelectedNodeId(null);
-  }, [setNodes, setEdges]);
+  const fitView = useCallback(() => rf.fitView({ padding: 0.2 }), [rf]);
 
-  const fitView = useCallback(() => {
-    rf.fitView({ padding: 0.2 });
-  }, [rf]);
-
-  // output 노드에 "최종 결과"를 수동으로 만들어 넣고 싶을 때 편의 버튼
-  const buildFinalFromLastGenerate = useCallback(() => {
+  const buildFinalFromOutputNode = useCallback(() => {
     const outputNodes = nodes.filter((n) => n.data.type === "output");
-    if (!outputNodes.length) {
-      alert("Output 노드가 없습니다.");
-      return;
-    }
+    if (!outputNodes.length) return alert("Output 노드가 없습니다.");
     const outNode = outputNodes[outputNodes.length - 1];
 
-    // output으로 들어오는 변수 = upstream merge
     const outputsMap = buildOutputsMapFromNodes(nodes);
     const incoming = gatherIncomingVars(outNode.id, edges, outputsMap);
 
-    // Output 노드에 final로 저장
     patchNodeData(outNode.id, {
       output: { final: JSON.stringify(incoming, null, 2) },
       outputPreview: previewOf(incoming),
@@ -366,7 +349,7 @@ function AppInner() {
   return (
     <div className="app">
       <div className="topbar">
-        <div className="brand">YouTube Workflow MVP (Manual)</div>
+        <div className="brand">YouTube Workflow MVP (Manual+Assets)</div>
 
         <button className="btn primary" onClick={startRun}>Start Run</button>
 
@@ -380,12 +363,24 @@ function AppInner() {
         <div className="sep" />
 
         <button className="btn" onClick={fitView}>Fit View</button>
-        <button className="btn" onClick={buildFinalFromLastGenerate}>Build Final(Output)</button>
-        <button className="btn danger" onClick={clearWorkflow}>Clear Workflow</button>
+        <button className="btn" onClick={buildFinalFromOutputNode}>Build Final(Output)</button>
       </div>
 
       <div className="left">
-        <NodePalette />
+        <div className="tabRow">
+          <button className={`tabBtn ${leftTab === "nodes" ? "active" : ""}`} onClick={() => setLeftTab("nodes")}>
+            Nodes
+          </button>
+          <button className={`tabBtn ${leftTab === "artifacts" ? "active" : ""}`} onClick={() => setLeftTab("artifacts")}>
+            Artifacts
+          </button>
+        </div>
+
+        {leftTab === "nodes" ? (
+          <NodePalette />
+        ) : (
+          <ArtifactsPanel nodes={nodes} onSelectNode={selectNode} />
+        )}
       </div>
 
       <div className="canvas">
@@ -409,12 +404,7 @@ function AppInner() {
       </div>
 
       <div className="right">
-        <Inspector
-          selectedNode={selectedNode}
-          nodes={nodes}
-          edges={edges}
-          onPatchNodeData={patchNodeData}
-        />
+        <Inspector selectedNode={selectedNode} nodes={nodes} edges={edges} onPatchNodeData={patchNodeData} />
       </div>
 
       <div className="bottom">
