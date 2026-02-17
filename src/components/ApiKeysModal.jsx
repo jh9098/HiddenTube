@@ -91,7 +91,7 @@ export default function ApiKeysModal({ open, keysObj, onClose, onSave }) {
           padding: 14,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 2, background: "rgba(18,20,27,0.98)", paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.10)" }}>
           <div style={{ fontWeight: 900, fontSize: 14 }}>API Keys</div>
           <div className="small">로컬 저장(localStorage)만 사용</div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>

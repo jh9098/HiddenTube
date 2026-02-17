@@ -20,7 +20,7 @@ export default function OutputNode({ data }) {
         <span>{data.config?.format || "text"}</span>
       </div>
       <div className="nodePreview">{preview}</div>
-      <Handle type="target" position={Position.Left} style={{ background: "#1dd1a1" }} />
+      <Handle type="target" position={Position.Left} className="connectionHandle" style={{ background: "#1dd1a1" }} />
     </div>
   );
 }
