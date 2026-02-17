@@ -30,8 +30,8 @@ export default function GenerateNode({ data }) {
         {data.outputPreview || (todoFirst ? `TODO: ${todoFirst}` : "할 일을 입력하세요 → 프롬프트 복사 → 결과 붙여넣기")}
       </div>
 
-      <Handle type="target" position={Position.Left} style={{ background: "#7c5cff" }} />
-      <Handle type="source" position={Position.Right} style={{ background: "#7c5cff" }} />
+      <Handle type="target" position={Position.Left} className="connectionHandle" style={{ background: "#7c5cff" }} />
+      <Handle type="source" position={Position.Right} className="connectionHandle" style={{ background: "#7c5cff" }} />
     </div>
   );
 }

@@ -28,8 +28,8 @@ export default function AssetNode({ data }) {
         </div>
       </div>
 
-      <Handle type="target" position={Position.Left} style={{ background: "#7c5cff" }} />
-      <Handle type="source" position={Position.Right} style={{ background: "#7c5cff" }} />
+      <Handle type="target" position={Position.Left} className="connectionHandle" style={{ background: "#7c5cff" }} />
+      <Handle type="source" position={Position.Right} className="connectionHandle" style={{ background: "#7c5cff" }} />
     </div>
   );
 }

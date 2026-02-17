@@ -17,7 +17,7 @@ export default function InputNode({ data }) {
         <span>{data.config?.key || "key"}</span>
       </div>
       <div className="nodePreview">{String(data.config?.value ?? "")}</div>
-      <Handle type="source" position={Position.Right} style={{ background: "#7c5cff" }} />
+      <Handle type="source" position={Position.Right} className="connectionHandle" style={{ background: "#7c5cff" }} />
     </div>
   );
 }

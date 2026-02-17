@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   ReactFlowProvider,
   addEdge,
@@ -11,7 +11,6 @@ import ReactFlow, {
 } from "reactflow";
 import { nanoid } from "nanoid";
 
-import NodePalette from "./components/NodePalette.jsx";
 import Inspector from "./components/Inspector.jsx";
 import RunTimeline from "./components/RunTimeline.jsx";
 import ArtifactsPanel from "./components/ArtifactsPanel.jsx";
@@ -35,6 +34,17 @@ import {
 import { loadApiKeys, saveApiKeys } from "./workflow/apiKeys.js";
 
 const STORAGE_KEY = "opal_mvp_workflow_v3";
+const QUICK_NODE_BUTTONS = [
+  { type: "input", label: "Input" },
+  { type: "generate", label: "Generate" },
+  { type: "asset", label: "Add Assets" },
+  { type: "output", label: "Output" },
+];
+const ASSET_CHOICES = [
+  { key: "upload", label: "파일 업로드" },
+  { key: "url", label: "URL 링크" },
+  { key: "text", label: "텍스트 메모" },
+];
 
 function makeInitial() {
   const n1 = {
@@ -97,6 +107,13 @@ function AppInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
 
+  const [assetMenuOpen, setAssetMenuOpen] = useState(false);
+  const [artifactsOpen, setArtifactsOpen] = useState(false);
+
+  const canvasRef = useRef(null);
+  const connectingNodeIdRef = useRef(null);
+  const connectionSucceededRef = useRef(false);
+
   const nodeTypes = useMemo(
     () => ({
       inputNode: InputNode,
@@ -110,14 +127,9 @@ function AppInner() {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
 
-  // Runs
   const [runs, setRuns] = useState([]);
   const [currentRunId, setCurrentRunId] = useState("");
 
-  // Left tabs
-  const [leftTab, setLeftTab] = useState("nodes");
-
-  // ✅ API Keys
   const [apiKeys, setApiKeys] = useState(() => loadApiKeys());
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
 
@@ -128,8 +140,53 @@ function AppInner() {
     [setNodes]
   );
 
+  const createNodeAtCanvas = useCallback(
+    (type, configPatch = null) => {
+      const id = nanoid();
+      let flowType = "generateNode";
+      if (type === "input") flowType = "inputNode";
+      if (type === "generate") flowType = "generateNode";
+      if (type === "asset") flowType = "assetNode";
+      if (type === "output") flowType = "outputNode";
+
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const position = rf.screenToFlowPosition({
+        x: rect ? rect.left + rect.width * 0.5 : window.innerWidth * 0.5,
+        y: rect ? rect.top + rect.height * 0.35 : window.innerHeight * 0.4,
+      });
+
+      const baseData = makeNodeData(type);
+      const nextData = configPatch
+        ? {
+            ...baseData,
+            config: {
+              ...baseData.config,
+              ...configPatch,
+            },
+          }
+        : baseData;
+
+      const newNode = {
+        id,
+        type: flowType,
+        position: {
+          x: position.x + Math.random() * 80 - 40,
+          y: position.y + Math.random() * 60 - 30,
+        },
+        data: nextData,
+      };
+
+      setNodes((nds) => nds.concat(newNode));
+      setSelectedNodeId(id);
+    },
+    [rf, setNodes]
+  );
+
   const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge({ ...params, id: nanoid() }, eds)),
+    (params) => {
+      connectionSucceededRef.current = true;
+      setEdges((eds) => addEdge({ ...params, id: nanoid() }, eds));
+    },
     [setEdges]
   );
 
@@ -339,7 +396,6 @@ function AppInner() {
     alert("Output 노드에 upstream 결과를 final로 반영했습니다.");
   }, [nodes, edges, patchNodeData]);
 
-  // ✅ API Keys 저장/로드
   const openApiKeys = () => setApiKeysOpen(true);
   const closeApiKeys = () => setApiKeysOpen(false);
   const saveApiKeysAndState = (next) => {
@@ -347,6 +403,26 @@ function AppInner() {
     saveApiKeys(next);
     alert("API Keys 저장 완료(localStorage).");
   };
+
+  const onConnectStart = useCallback((_, params) => {
+    connectionSucceededRef.current = false;
+    connectingNodeIdRef.current = params?.nodeId || null;
+  }, []);
+
+  const onConnectEnd = useCallback((event) => {
+    if (connectionSucceededRef.current) return;
+
+    const sourceId = connectingNodeIdRef.current;
+    connectingNodeIdRef.current = null;
+    if (!sourceId) return;
+
+    const nodeElFromPath = event.composedPath?.().find((el) => el?.classList?.contains?.("react-flow__node"));
+    const nodeElFromPoint = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".react-flow__node");
+    const targetNodeId = nodeElFromPath?.getAttribute?.("data-id") || nodeElFromPoint?.getAttribute?.("data-id");
+
+    if (!targetNodeId || targetNodeId === sourceId) return;
+    setEdges((eds) => addEdge({ id: nanoid(), source: sourceId, target: targetNodeId }, eds));
+  }, [setEdges]);
 
   return (
     <div className="app">
@@ -372,24 +448,52 @@ function AppInner() {
         <button className="btn" onClick={buildFinalFromOutputNode}>Build Final(Output)</button>
       </div>
 
-      <div className="left">
-        <div className="tabRow">
-          <button className={`tabBtn ${leftTab === "nodes" ? "active" : ""}`} onClick={() => setLeftTab("nodes")}>
-            Nodes
-          </button>
-          <button className={`tabBtn ${leftTab === "artifacts" ? "active" : ""}`} onClick={() => setLeftTab("artifacts")}>
-            Artifacts
-          </button>
+      <div className="canvas" ref={canvasRef}>
+        <div className="quickNodeBar">
+          {QUICK_NODE_BUTTONS.map((item) => (
+            <div key={item.type} style={{ position: "relative" }}>
+              <button
+                className="tabBtn quickNodeBtn"
+                onClick={() => {
+                  if (item.type !== "asset") {
+                    createNodeAtCanvas(item.type);
+                    return;
+                  }
+                  setAssetMenuOpen((prev) => !prev);
+                }}
+              >
+                {item.label}
+              </button>
+              {item.type === "asset" && assetMenuOpen ? (
+                <div className="assetMenu">
+                  {ASSET_CHOICES.map((choice) => (
+                    <button
+                      key={choice.key}
+                      className="assetMenuItem"
+                      onClick={() => {
+                        createNodeAtCanvas("asset", { source: choice.key, title: choice.label });
+                        setAssetMenuOpen(false);
+                      }}
+                    >
+                      {choice.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))}
         </div>
 
-        {leftTab === "nodes" ? (
-          <NodePalette />
-        ) : (
-          <ArtifactsPanel nodes={nodes} onSelectNode={selectNode} />
-        )}
-      </div>
+        <button className="btn artifactsToggle" onClick={() => setArtifactsOpen((prev) => !prev)}>
+          Artifacts {artifactsOpen ? "닫기" : "보기"}
+        </button>
 
-      <div className="canvas">
+        {artifactsOpen ? (
+          <div className="artifactsDrawer">
+            <ArtifactsPanel nodes={nodes} onSelectNode={selectNode} />
+          </div>
+        ) : null}
+
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -397,10 +501,15 @@ function AppInner() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={(params) => onConnect(params)}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
           onDragOver={(e) => onDragOver(e)}
           onDrop={(e) => onDrop(e)}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-          onPaneClick={() => setSelectedNodeId(null)}
+          onPaneClick={() => {
+            setSelectedNodeId(null);
+            setAssetMenuOpen(false);
+          }}
           fitView
         >
           <Background />
