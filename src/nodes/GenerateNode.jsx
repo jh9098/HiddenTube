@@ -13,6 +13,7 @@ export default function GenerateNode({ data }) {
   const model = data.config?.modelId || "";
   const provider = data.config?.provider || "";
   const todoFirst = (data.config?.todo || "").split("\n")[0];
+  const responseMode = data.config?.responseMode || "schema";
 
   return (
     <div style={{ padding: 10, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(124,92,255,0.10)", width: 320 }}>
@@ -23,7 +24,7 @@ export default function GenerateNode({ data }) {
       </div>
 
       <div className="small" style={{ marginTop: 6 }}>
-        Provider: <b style={{ color: "#e8e8ea" }}>{provider}</b> · outputKey: <b style={{ color: "#e8e8ea" }}>{data.config?.outputKey || "result"}</b>
+        Provider: <b style={{ color: "#e8e8ea" }}>{provider}</b> · outputKey: <b style={{ color: "#e8e8ea" }}>{data.config?.outputKey || "result"}</b> · mode: <b style={{ color: "#e8e8ea" }}>{responseMode}</b>
       </div>
 
       <div className="nodePreview">

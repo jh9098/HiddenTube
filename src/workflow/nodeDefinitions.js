@@ -38,6 +38,14 @@ export const NODE_DEFS = {
       todo: DEFAULT_TODO_BY_CAPABILITY.text,
       promptTemplate: DEFAULT_PROMPT_BY_CAPABILITY.text,
 
+      // 응답 형식 설정
+      responseMode: "schema", // schema | freeform
+      schemaMode: "template", // template | json
+      schemaFieldsText: "",
+      schemaText: "",
+      freeformGuide: "",
+      enforceCoreFields: true,
+
       // 수동 결과
       manualText: "",
       manualUrl: "",
