@@ -232,3 +232,80 @@ html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text);
   height: 20px !important;
   border: 2px solid rgba(255,255,255,0.55) !important;
 }
+
+.nodeCard {
+  width: 320px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #22242d;
+  overflow: hidden;
+}
+
+.nodeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #b7c8ef;
+  color: #1b2234;
+}
+
+.nodeTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nodeTitleIcon {
+  font-size: 12px;
+}
+
+.nodeTitle {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nodeRunBtn {
+  border: none;
+  background: transparent;
+  color: #13203e;
+  font-size: 12px;
+  cursor: pointer;
+  min-width: 20px;
+}
+
+.nodeCard .nodeMeta,
+.nodeCard .nodePreview {
+  margin: 10px 12px;
+}
+
+.inputNodeCard {
+  width: 280px;
+}
+
+.generateNodeCard,
+.outputNodeCard {
+  width: 340px;
+}
+
+.assetNodeCard {
+  width: 300px;
+}
+
+.inputExecutionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inputExecutionHint {
+  color: #58d8f3;
+  font-size: 18px;
+  line-height: 1.4;
+}

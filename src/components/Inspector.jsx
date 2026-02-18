@@ -46,7 +46,7 @@ function Field({ field, value, onChange }) {
   return <input {...commonProps} type="text" />;
 }
 
-export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData }) {
+export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData, onCompleteInputNode }) {
   const [fileObjectUrl, setFileObjectUrl] = useState("");
 
   const def = useMemo(() => {
@@ -148,6 +148,15 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
         <div className="small" style={{ marginBottom: 8 }}>
           노드: <b style={{ color: "#e8e8ea" }}>{selectedNode.data.label}</b>
         </div>
+        <div className="field">
+          <div className="label">노드 이름</div>
+          <input
+            className="input"
+            value={selectedNode.data.label || ""}
+            onChange={(e) => onPatchNodeData(selectedNode.id, { label: e.target.value })}
+            placeholder="노드 제목을 입력하세요"
+          />
+        </div>
         {fields.map((f) => (
           <div key={f.name} className="field">
             <div className="label">{f.label}</div>
@@ -162,7 +171,7 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
           </div>
         ))}
 
-        {selectedNode.data.type === "generate" ? (
+      {selectedNode.data.type === "generate" ? (
           <>
             <div className="small" style={{ marginTop: 2 }}>
               연결 노드 답변 + 현재 prompt를 합쳐서 모델 입력 프롬프트를 생성합니다.
@@ -173,6 +182,30 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
           </>
         ) : null}
       </div>
+
+      {selectedNode.data.type === "input" ? (
+        <>
+          <div className="h2">입력 실행</div>
+          <div className="card inputExecutionCard">
+            <div className="inputExecutionHint">
+              {(cfg.value || "").trim() || "주제와 타깃을 입력하세요"}
+            </div>
+            <textarea
+              className="textarea"
+              value={cfg.userValue || ""}
+              onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, userValue: e.target.value } })}
+              placeholder="예: 20대 직장인을 위한 경제 뉴스 쇼츠"
+            />
+            <button
+              className="btn primary"
+              onClick={() => onCompleteInputNode?.(selectedNode.id)}
+              disabled={!(cfg.userValue || "").trim()}
+            >
+              입력 완료 → 다음 노드 실행
+            </button>
+          </div>
+        </>
+      ) : null}
 
       {selectedNode.data.type === "generate" ? (
         <>
