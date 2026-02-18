@@ -4,14 +4,14 @@ export const NODE_DEFS = {
   input: {
     label: "입력 (Input)",
     category: "Input",
-    description: "주제/키워드/기본 정보를 넣습니다. (자동으로 output 변수로 내려감)",
+    description: "실행 시 사용자에게 보여줄 안내 문구와 다음 노드로 전달할 입력값을 설정합니다.",
     defaultConfig: {
-      key: "topic",
-      value: "유튜브 쇼츠 주제",
+      value: "",
+      userValue: "",
     },
     fields: [
-      { name: "key", label: "키(key)", type: "text", placeholder: "topic" },
-      { name: "value", label: "값(value)", type: "textarea", placeholder: "예: 오늘의 경제 이슈" },
+      { name: "value", label: "실행 안내 문구", type: "textarea", placeholder: "예: 주제와 타깃을 입력하세요" },
+      { name: "userValue", label: "사용자 입력값(다음 노드로 전달)", type: "textarea", placeholder: "예: 경제 뉴스, 20대 직장인" },
     ],
   },
 

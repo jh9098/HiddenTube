@@ -14,9 +14,11 @@ export default function InputNode({ data }) {
       <div className="nodeTitle">{data.label}</div>
       <div className="nodeMeta">
         <span className="statusDot"><span className={`dot ${dotClass(data.status)}`}></span>{data.status}</span>
-        <span>{data.config?.key || "key"}</span>
       </div>
-      <div className="nodePreview">{String(data.config?.value ?? "")}</div>
+      <div className="nodePreview">
+        <div><b>안내:</b> {String(data.config?.value ?? "")}</div>
+        <div style={{ marginTop: 4 }}><b>입력값:</b> {String(data.config?.userValue ?? "") || "(미입력)"}</div>
+      </div>
       <Handle type="source" position={Position.Right} className="connectionHandle" style={{ background: "#7c5cff" }} />
     </div>
   );
