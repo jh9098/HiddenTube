@@ -24,10 +24,9 @@ export default function RunTimeline({
     if (!current) return [];
     return current.steps.map((s) => {
       const node = nodes.find((n) => n.id === s.nodeId);
-      const cap = node?.data?.config?.capability || "";
       const model = node?.data?.config?.modelId || "";
       const label = node?.data?.label || "Node";
-      return { ...s, label, cap, model };
+      return { ...s, label, model };
     });
   }, [current, nodes]);
 
@@ -89,7 +88,7 @@ export default function RunTimeline({
                 <span className={`dot ${dotClass(s.status)}`}></span>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 800 }}>{s.label}</div>
-                  <div className="small">{s.cap ? `cap: ${s.cap}` : ""} {s.model ? `· model: ${s.model}` : ""}</div>
+                  <div className="small">{s.model ? `model: ${s.model}` : ""}</div>
                 </div>
               </div>
 

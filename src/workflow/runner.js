@@ -101,8 +101,8 @@ export function collectArtifactsFromNodes(nodes) {
     }
 
     if (t === "generate") {
-      const key = (cfg.outputKey || "").trim() || "result";
-      const title = cfg.todo ? cfg.todo.split("\n")[0].slice(0, 60) : "Generate";
+      const key = "result";
+      const title = cfg.prompt ? cfg.prompt.split("\n")[0].slice(0, 60) : "Generate";
       if (cfg.manualUrl) items.push({ nodeId: n.id, key, title, kind: "url", value: cfg.manualUrl, source: "manual" });
       if (cfg.manualFileName) items.push({ nodeId: n.id, key, title, kind: "file", value: cfg.manualFileName, source: "manual" });
       // manualText는 너무 길 수 있어, 아티팩트는 요약만

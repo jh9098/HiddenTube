@@ -30,8 +30,7 @@ import {
 } from "./workflow/runner.js";
 
 import { loadApiKeys, saveApiKeys } from "./workflow/apiKeys.js";
-import { buildJsonResponsePrompt } from "./workflow/promptComposer.js";
-import { resolveSchemaConfig } from "./workflow/responseSchema.js";
+import { buildModelInputPrompt } from "./workflow/promptComposer.js";
 
 const STORAGE_KEY = "opal_mvp_workflow_v3";
 const QUICK_NODE_BUTTONS = [
@@ -62,7 +61,7 @@ function makeInitial() {
     position: { x: 380, y: 120 },
     data: makeNodeData("generate"),
   };
-  n2.data.config.capability = "research";
+  n2.data.config.modelId = "Deep Research with Gemini 2.5 Flash";
 
   const n3 = {
     id: nanoid(),
@@ -70,7 +69,7 @@ function makeInitial() {
     position: { x: 700, y: 120 },
     data: makeNodeData("generate"),
   };
-  n3.data.config.capability = "text";
+  n3.data.config.modelId = "Gemini 3 Flash";
 
   const n4 = {
     id: nanoid(),
@@ -334,14 +333,12 @@ function AppInner() {
       }
       const outputsMap = buildOutputsMapFromNodes(nodes);
       const vars = gatherIncomingVars(nodeId, edges, outputsMap);
-      const schemaConfig = resolveSchemaConfig(vars, node.data.config || {});
-      if (schemaConfig.error) {
-        alert(schemaConfig.error);
-        return;
-      }
-      const prompt = buildJsonResponsePrompt(node.data.config?.promptTemplate || "", vars, schemaConfig);
+      const incomingNodeNames = edges
+        .filter((e) => e.target === nodeId)
+        .map((e) => nodes.find((n) => n.id === e.source)?.data?.label || e.source);
+      const prompt = buildModelInputPrompt(node.data.config?.prompt || "", vars, incomingNodeNames);
       await navigator.clipboard.writeText(prompt);
-      alert("JSON 스키마 응답용 프롬프트를 클립보드에 복사했습니다.");
+      alert("모델 입력용 프롬프트를 클립보드에 복사했습니다.");
     },
     [nodes, edges]
   );

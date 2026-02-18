@@ -1,12 +1,4 @@
-import {
-  CAPABILITY_OPTIONS,
-  PROVIDER_OPTIONS,
-  MODELS_BY_CAPABILITY,
-  DEFAULT_OUTPUT_KEY_BY_CAPABILITY,
-  DEFAULT_TODO_BY_CAPABILITY,
-  DEFAULT_PROMPT_BY_CAPABILITY,
-  ASSET_SOURCES,
-} from "./catalog.js";
+import { MODEL_OPTIONS, DEFAULT_PROMPT, ASSET_SOURCES } from "./catalog.js";
 
 export const NODE_DEFS = {
   input: {
@@ -26,38 +18,17 @@ export const NODE_DEFS = {
   generate: {
     label: "작업 (Generate/Manual)",
     category: "Generate",
-    description:
-      "할 일을 자유롭게 적고, 프롬프트를 복사해 AI에서 결과를 받아 붙여넣습니다.",
+    description: "모델 1개를 선택하고 prompt를 작성한 뒤 결과를 수동 입력합니다.",
     defaultConfig: {
-      capability: "text",
-      provider: "google",
       modelId: "Gemini 3 Flash",
-      outputKey: "script_text",
-
-      // 자유 입력
-      todo: DEFAULT_TODO_BY_CAPABILITY.text,
-      promptTemplate: DEFAULT_PROMPT_BY_CAPABILITY.text,
-
-      // 응답 형식 설정
-      responseMode: "schema", // schema | freeform
-      schemaMode: "template", // template | json
-      schemaFieldsText: "",
-      schemaText: "",
-      freeformGuide: "",
-      enforceCoreFields: true,
-
-      // 수동 결과
+      prompt: DEFAULT_PROMPT,
       manualText: "",
       manualUrl: "",
       manualFileName: "",
     },
     fields: [
-      { name: "capability", label: "기능(Capability)", type: "capabilitySelect" },
-      { name: "provider", label: "Provider", type: "providerSelect" },
       { name: "modelId", label: "모델(Model)", type: "modelSelect" },
-      { name: "outputKey", label: "출력 키(outputKey)", type: "text", placeholder: "script_text" },
-      { name: "todo", label: "이 단계에서 할 일(자유 입력)", type: "textarea" },
-      { name: "promptTemplate", label: "프롬프트 템플릿(자유)", type: "textarea" },
+      { name: "prompt", label: "prompt", type: "textarea" },
     ],
   },
 
@@ -66,12 +37,10 @@ export const NODE_DEFS = {
     category: "Asset",
     description: "외부자료/파일/링크/텍스트를 변수로 저장합니다.",
     defaultConfig: {
-      source: "upload",     // upload | drive | youtube | text | drawing
-      assetKey: "asset_1",  // downstream 변수 키
+      source: "upload",
+      assetKey: "asset_1",
       title: "자료",
       notes: "",
-
-      // 값(수동)
       text: "",
       url: "",
       fileName: "",
@@ -100,12 +69,7 @@ export const NODE_DEFS = {
 };
 
 export const META = {
-  capabilities: CAPABILITY_OPTIONS,
-  providers: PROVIDER_OPTIONS,
-  modelsByCapability: MODELS_BY_CAPABILITY,
-  defaultOutputKeyByCapability: DEFAULT_OUTPUT_KEY_BY_CAPABILITY,
-  defaultTodoByCapability: DEFAULT_TODO_BY_CAPABILITY,
-  defaultPromptByCapability: DEFAULT_PROMPT_BY_CAPABILITY,
+  models: MODEL_OPTIONS,
   assetSources: ASSET_SOURCES,
 };
 
@@ -115,8 +79,8 @@ export function makeNodeData(type) {
     type,
     label: def.label,
     config: structuredClone(def.defaultConfig),
-    status: "idle", // idle | todo | doing | done | error
-    output: null,   // 변수 객체 (업스트림으로 전달)
+    status: "idle",
+    output: null,
     outputPreview: "",
     lastError: "",
   };

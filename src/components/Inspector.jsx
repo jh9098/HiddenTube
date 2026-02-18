@@ -1,43 +1,20 @@
 import React, { useMemo, useState } from "react";
 import { NODE_DEFS, META } from "../workflow/nodeDefinitions.js";
-import {
-  buildOutputsMapFromNodes,
-  gatherIncomingVars,
-  previewOf,
-} from "../workflow/runner.js";
-import { buildJsonResponsePrompt, extractVarKeys } from "../workflow/promptComposer.js";
-import { resolveSchemaConfig, tryParseJsonObject } from "../workflow/responseSchema.js";
+import { buildOutputsMapFromNodes, gatherIncomingVars, previewOf } from "../workflow/runner.js";
+import { buildModelInputPrompt, extractVarKeys } from "../workflow/promptComposer.js";
+import { tryParseJsonObject } from "../workflow/responseSchema.js";
 
-function Field({ field, value, onChange, capability }) {
-  if (field.type === "capabilitySelect") {
-    return (
-      <select className="select" value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
-        {META.capabilities.map((opt) => (
-          <option key={opt.id} value={opt.id}>{opt.label}</option>
-        ))}
-      </select>
-    );
-  }
-  if (field.type === "providerSelect") {
-    return (
-      <select className="select" value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
-        {META.providers.map((opt) => (
-          <option key={opt.id} value={opt.id}>{opt.label}</option>
-        ))}
-      </select>
-    );
-  }
+function Field({ field, value, onChange }) {
   if (field.type === "modelSelect") {
-    const list = META.modelsByCapability[capability] || ["Custom"];
     return (
       <select className="select" value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
-        {list.map((m) => (
+        {META.models.map((m) => (
           <option key={m} value={m}>{m}</option>
         ))}
-        {!list.includes("Custom") ? <option value="Custom">Custom</option> : null}
       </select>
     );
   }
+
   if (field.type === "assetSourceSelect") {
     return (
       <select className="select" value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
@@ -79,7 +56,6 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
 
   const fields = def?.fields || [];
   const cfg = selectedNode?.data?.config || {};
-  const capability = cfg.capability || "custom";
 
   const incomingVars = useMemo(() => {
     if (!selectedNode) return {};
@@ -87,14 +63,20 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
     return gatherIncomingVars(selectedNode.id, edges, outputsMap);
   }, [selectedNode, nodes, edges]);
 
-  const schemaConfig = useMemo(() => resolveSchemaConfig(incomingVars, cfg), [incomingVars, cfg]);
+  const incomingNodeNames = useMemo(() => {
+    if (!selectedNode) return [];
+    const sourceIds = edges.filter((e) => e.target === selectedNode.id).map((e) => e.source);
+    return Array.from(
+      new Set(sourceIds.map((id) => nodes.find((n) => n.id === id)?.data?.label || id).filter(Boolean))
+    );
+  }, [selectedNode, edges, nodes]);
 
   if (!selectedNode) {
     return (
       <div>
         <div className="h1">속성</div>
         <div className="card small">
-          노드를 선택하면 설정(할 일/프롬프트/수동 결과/자산)이 표시됩니다.
+          노드를 선택하면 설정(prompt/수동 결과/자산)이 표시됩니다.
         </div>
       </div>
     );
@@ -105,13 +87,9 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
   };
 
   const copyRenderedPrompt = async () => {
-    if (schemaConfig.error) {
-      alert(schemaConfig.error);
-      return;
-    }
-    const prompt = buildJsonResponsePrompt(cfg.promptTemplate || "", incomingVars, schemaConfig);
+    const prompt = buildModelInputPrompt(cfg.prompt || "", incomingVars, incomingNodeNames);
     await navigator.clipboard.writeText(prompt);
-    alert(schemaConfig.responseMode === "freeform" ? "자유모드 프롬프트를 복사했습니다." : "JSON 스키마 응답용 프롬프트를 복사했습니다.");
+    alert("모델 입력용 프롬프트를 복사했습니다.");
   };
 
   const applyInputAsOutput = () => {
@@ -127,22 +105,21 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
   };
 
   const applyGenerateManualToOutput = () => {
-    const outKey = (cfg.outputKey || "").trim() || "result";
     const payload = {};
     const manualText = cfg.manualText?.trim() || "";
 
     if (manualText) {
-      payload[outKey] = manualText;
+      payload.result_text = manualText;
       const parsed = tryParseJsonObject(manualText);
       if (parsed) {
-        payload[outKey] = parsed;
-        payload[`${outKey}_raw`] = manualText;
+        payload.result_text = parsed;
+        payload.result_text_raw = manualText;
       }
     }
-    if (cfg.manualUrl?.trim()) payload[`${outKey}_url`] = cfg.manualUrl.trim();
-    if (cfg.manualFileName?.trim()) payload[`${outKey}_file`] = cfg.manualFileName.trim();
+    if (cfg.manualUrl?.trim()) payload.result_url = cfg.manualUrl.trim();
+    if (cfg.manualFileName?.trim()) payload.result_file = cfg.manualFileName.trim();
 
-    if (Object.keys(payload).length === 0) payload[outKey] = "";
+    if (Object.keys(payload).length === 0) payload.result_text = "";
 
     onPatchNodeData(selectedNode.id, {
       output: payload,
@@ -176,22 +153,6 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
     alert("Asset을 output에 적용했습니다. (status=done)");
   };
 
-  const onCapabilityChanged = (nextCap) => {
-    const nextCfg = { ...cfg };
-    nextCfg.capability = nextCap;
-    const models = META.modelsByCapability[nextCap] || ["Custom"];
-    nextCfg.modelId = models[0] || "Custom";
-    nextCfg.outputKey = META.defaultOutputKeyByCapability[nextCap] || "result";
-
-    if (!nextCfg.todo || nextCfg.todo.trim().length === 0) {
-      nextCfg.todo = META.defaultTodoByCapability[nextCap] || "";
-    }
-    if (!nextCfg.promptTemplate || nextCfg.promptTemplate.trim().length === 0) {
-      nextCfg.promptTemplate = META.defaultPromptByCapability[nextCap] || "";
-    }
-    onPatchNodeData(selectedNode.id, { config: nextCfg });
-  };
-
   const isAssetYoutube = selectedNode.data.type === "asset" && (cfg.source === "youtube");
 
   return (
@@ -220,13 +181,8 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
             <div className="label">{f.label}</div>
             <Field
               field={f}
-              capability={capability}
               value={cfg[f.name]}
               onChange={(val) => {
-                if (selectedNode.data.type === "generate" && f.name === "capability") {
-                  onCapabilityChanged(val);
-                  return;
-                }
                 const nextCfg = { ...cfg, [f.name]: val };
                 onPatchNodeData(selectedNode.id, { config: nextCfg });
               }}
@@ -236,84 +192,9 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
 
         {selectedNode.data.type === "generate" ? (
           <>
-            <div className="field">
-              <div className="label">응답 모드</div>
-              <select
-                className="select"
-                value={cfg.responseMode || "schema"}
-                onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, responseMode: e.target.value } })}
-              >
-                <option value="schema">정해진 틀(JSON 스키마)</option>
-                <option value="freeform">자유모드(텍스트/마크다운 허용)</option>
-              </select>
+            <div className="small" style={{ marginTop: 2 }}>
+              연결 노드 답변 + 현재 prompt를 합쳐서 모델 입력 프롬프트를 생성합니다.
             </div>
-
-            {cfg.responseMode !== "freeform" ? (
-              <>
-                <div className="field">
-                  <div className="label">스키마 설정 방식</div>
-                  <select
-                    className="select"
-                    value={cfg.schemaMode || "template"}
-                    onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, schemaMode: e.target.value } })}
-                  >
-                    <option value="template">간단 템플릿</option>
-                    <option value="json">JSON 직접 입력</option>
-                  </select>
-                </div>
-
-                {cfg.schemaMode !== "json" ? (
-                  <>
-                    <div className="field">
-                      <div className="label">템플릿 필드(한 줄에 1개)</div>
-                      <textarea
-                        className="textarea"
-                        value={cfg.schemaFieldsText || ""}
-                        onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, schemaFieldsText: e.target.value } })}
-                        placeholder={"headline|string|제목|required\nscore|number|점수|\nitems|array|목록|"}
-                      />
-                      <div className="small" style={{ marginTop: 6 }}>
-                        형식: key|type|string 설명|required(선택)
-                      </div>
-                    </div>
-
-                    <label className="small" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={cfg.enforceCoreFields !== false}
-                        onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, enforceCoreFields: e.target.checked } })}
-                      />
-                      핵심 필드(summary/result_text/keywords) 자동 포함
-                    </label>
-                  </>
-                ) : (
-                  <div className="field">
-                    <div className="label">JSON Schema 직접 입력</div>
-                    <textarea
-                      className="textarea"
-                      value={cfg.schemaText || ""}
-                      onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, schemaText: e.target.value } })}
-                      placeholder='{"type":"object","properties":{"result_text":{"type":"string"}}}'
-                    />
-                  </div>
-                )}
-
-                <div className="small" style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
-                  {schemaConfig.error || "스키마 미리보기\n" + JSON.stringify(schemaConfig.schema, null, 2)}
-                </div>
-              </>
-            ) : (
-              <div className="field">
-                <div className="label">자유모드 가이드(선택)</div>
-                <textarea
-                  className="textarea"
-                  value={cfg.freeformGuide || ""}
-                  onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, freeformGuide: e.target.value } })}
-                  placeholder="예: 5문장 이내, 핵심 결론 먼저, 표는 markdown으로 작성"
-                />
-              </div>
-            )}
-
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
               <button className="btn" onClick={copyRenderedPrompt}>Copy Prompt (업스트림 반영)</button>
             </div>
@@ -335,13 +216,14 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
 
       {selectedNode.data.type === "generate" ? (
         <>
-          <div className="h2">업스트림 변수(참고)</div>
+          <div className="h2">업스트림 답변(참고)</div>
           <div className="card small" style={{ whiteSpace: "pre-wrap" }}>
             {Object.keys(incomingVars).length ? JSON.stringify(incomingVars, null, 2) : "(없음) - Input/Asset/이전 노드를 연결하세요."}
           </div>
           <div className="small" style={{ marginTop: 6 }}>
-            사용법: 프롬프트 템플릿에서 {"{{a}}"}, {"{{b}}"}처럼 키를 사용하면 연결된 노드의 저장값이 자동 치환됩니다.
-            현재 사용 가능한 키: {extractVarKeys(incomingVars).join(", ") || "없음"}
+            참조한 연결 노드: {incomingNodeNames.join(", ") || "없음"}
+            <br />
+            사용 가능한 업스트림 키: {extractVarKeys(incomingVars).join(", ") || "없음"}
           </div>
 
           <div className="h2">수동 결과 입력</div>
@@ -352,7 +234,7 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
                 className="textarea"
                 value={cfg.manualText || ""}
                 onChange={(e) => onPatchNodeData(selectedNode.id, { config: { ...cfg, manualText: e.target.value } })}
-                placeholder="AI 결과(대본/요약/표 등)를 여기에 붙여넣으세요. 자유모드 결과도 그대로 저장됩니다."
+                placeholder="모델 응답(답변)을 여기에 붙여넣으세요."
               />
             </div>
 
