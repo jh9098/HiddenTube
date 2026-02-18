@@ -53,7 +53,7 @@ function makeInitial() {
     data: makeNodeData("input"),
   };
   n1.data.config.key = "topic";
-  n1.data.config.value = "경제 뉴스 쇼츠";
+  n1.data.config.value = "";
 
   const n2 = {
     id: nanoid(),
@@ -138,6 +138,36 @@ function AppInner() {
       setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n)));
     },
     [setNodes]
+  );
+
+
+  const setNodeStatus = useCallback(
+    (nodeId, status) => {
+      patchNodeData(nodeId, { status });
+    },
+    [patchNodeData]
+  );
+
+  const onToggleNodeRun = useCallback(
+    (nodeId) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      const nextStatus = node.data.status === "doing" ? "idle" : "doing";
+      setNodeStatus(nodeId, nextStatus);
+      setSelectedNodeId(nodeId);
+    },
+    [nodes, setNodeStatus]
+  );
+
+  const onCompleteInputNode = useCallback(
+    (nodeId) => {
+      setNodeStatus(nodeId, "done");
+      const nextEdge = edges.find((edge) => edge.source === nodeId);
+      if (!nextEdge) return;
+      setNodeStatus(nextEdge.target, "doing");
+      setSelectedNodeId(nextEdge.target);
+    },
+    [edges, setNodeStatus]
   );
 
   const createNodeAtCanvas = useCallback(
@@ -440,6 +470,18 @@ function AppInner() {
     connectingNodeIdRef.current = nodeId;
   }, [setEdges]);
 
+  const nodesWithActions = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          onToggleRun: () => onToggleNodeRun(node.id),
+        },
+      })),
+    [nodes, onToggleNodeRun]
+  );
+
   const onConnectEnd = useCallback((event) => {
     if (connectionSucceededRef.current) {
       connectingNodeIdRef.current = null;
@@ -531,7 +573,7 @@ function AppInner() {
         ) : null}
 
         <ReactFlow
-          nodes={nodes}
+          nodes={nodesWithActions}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
@@ -555,14 +597,20 @@ function AppInner() {
       </div>
 
       <div className="right">
-        <Inspector selectedNode={selectedNode} nodes={nodes} edges={edges} onPatchNodeData={patchNodeData} />
+        <Inspector
+          selectedNode={selectedNode}
+          nodes={nodes}
+          edges={edges}
+          onPatchNodeData={patchNodeData}
+          onCompleteInputNode={onCompleteInputNode}
+        />
       </div>
 
       <div className="bottom">
         <RunTimeline
           runs={runs}
           currentRunId={currentRunId}
-          nodes={nodes}
+          nodes={nodesWithActions}
           onSelectRun={selectRun}
           onSelectNode={selectNode}
           onStartRun={startRun}
