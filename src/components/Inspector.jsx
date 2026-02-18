@@ -82,26 +82,10 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
     );
   }
 
-  const markStatus = (status) => {
-    onPatchNodeData(selectedNode.id, { status });
-  };
-
   const copyRenderedPrompt = async () => {
     const prompt = buildModelInputPrompt(cfg.prompt || "", incomingVars, incomingNodeNames);
     await navigator.clipboard.writeText(prompt);
     alert("모델 입력용 프롬프트를 복사했습니다.");
-  };
-
-  const applyInputAsOutput = () => {
-    const key = (cfg.key || "").trim() || "topic";
-    const val = cfg.value ?? "";
-    const payload = { [key]: val };
-    onPatchNodeData(selectedNode.id, {
-      output: payload,
-      outputPreview: previewOf(payload),
-      status: "done",
-      lastError: "",
-    });
   };
 
   const applyGenerateManualToOutput = () => {
@@ -159,23 +143,11 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
     <div>
       <div className="h1">속성</div>
 
-      <div className="card">
-        <div style={{ fontWeight: 800, marginBottom: 6 }}>{selectedNode.data.label}</div>
-        <div className="kv">
-          <span>id</span><b>{selectedNode.id}</b>
-          <span>type</span><b>{selectedNode.data.type}</b>
-          <span>status</span><b>{selectedNode.data.status}</b>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-          <button className="btn" onClick={() => markStatus("todo")}>TODO</button>
-          <button className="btn" onClick={() => markStatus("doing")}>DOING</button>
-          <button className="btn" onClick={() => markStatus("done")}>DONE</button>
-        </div>
-      </div>
-
       <div className="h2">설정</div>
       <div className="card">
+        <div className="small" style={{ marginBottom: 8 }}>
+          노드: <b style={{ color: "#e8e8ea" }}>{selectedNode.data.label}</b>
+        </div>
         {fields.map((f) => (
           <div key={f.name} className="field">
             <div className="label">{f.label}</div>
@@ -201,18 +173,6 @@ export default function Inspector({ selectedNode, nodes, edges, onPatchNodeData 
           </>
         ) : null}
       </div>
-
-      {selectedNode.data.type === "input" ? (
-        <>
-          <div className="h2">Input → Output 적용</div>
-          <div className="card">
-            <div className="small">Input은 변수로 내려가야 하므로, 아래 버튼으로 output에 반영하세요.</div>
-            <div style={{ marginTop: 8 }}>
-              <button className="btn primary" onClick={applyInputAsOutput}>Apply Input as Output</button>
-            </div>
-          </div>
-        </>
-      ) : null}
 
       {selectedNode.data.type === "generate" ? (
         <>

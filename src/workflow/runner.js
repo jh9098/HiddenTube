@@ -45,6 +45,16 @@ export function topoSort(nodes, edges) {
 export function buildOutputsMapFromNodes(nodes) {
   const m = new Map();
   for (const n of nodes) {
+    const type = n?.data?.type;
+    const cfg = n?.data?.config || {};
+
+    if (type === "input") {
+      const userValue = cfg.userValue ?? "";
+      const fallback = cfg.value ?? "";
+      m.set(n.id, { input: userValue || fallback });
+      continue;
+    }
+
     if (n?.data?.output && typeof n.data.output === "object") {
       m.set(n.id, n.data.output);
     }
