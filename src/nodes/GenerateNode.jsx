@@ -9,26 +9,23 @@ function dotClass(status) {
 }
 
 export default function GenerateNode({ data }) {
-  const cap = data.config?.capability || "";
   const model = data.config?.modelId || "";
-  const provider = data.config?.provider || "";
-  const todoFirst = (data.config?.todo || "").split("\n")[0];
-  const responseMode = data.config?.responseMode || "schema";
+  const promptFirst = (data.config?.prompt || "").split("\n")[0];
 
   return (
     <div style={{ padding: 10, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(124,92,255,0.10)", width: 320 }}>
       <div className="nodeTitle">{data.label}</div>
       <div className="nodeMeta">
         <span className="statusDot"><span className={`dot ${dotClass(data.status)}`}></span>{data.status}</span>
-        <span>{cap} · {model}</span>
+        <span>{model}</span>
       </div>
 
       <div className="small" style={{ marginTop: 6 }}>
-        Provider: <b style={{ color: "#e8e8ea" }}>{provider}</b> · outputKey: <b style={{ color: "#e8e8ea" }}>{data.config?.outputKey || "result"}</b> · mode: <b style={{ color: "#e8e8ea" }}>{responseMode}</b>
+        prompt + 연결 답변 기반 실행
       </div>
 
       <div className="nodePreview">
-        {data.outputPreview || (todoFirst ? `TODO: ${todoFirst}` : "할 일을 입력하세요 → 프롬프트 복사 → 결과 붙여넣기")}
+        {data.outputPreview || (promptFirst ? `prompt: ${promptFirst}` : "prompt를 입력하세요 → 프롬프트 복사 → 결과 붙여넣기")}
       </div>
 
       <Handle type="target" position={Position.Left} className="connectionHandle" style={{ background: "#7c5cff" }} />
