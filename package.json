@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "manage-skills": "node scripts/manage-skills.mjs",
+    "verify-implementation": "node scripts/verify-implementation.mjs"
   },
   "dependencies": {
     "nanoid": "^5.1.6",
