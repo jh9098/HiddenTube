@@ -46,3 +46,16 @@ class ValidateResponse(BaseModel):
     valid: bool
     issues: list[ValidationIssue]
     missing_assets: list[dict[str, str]]
+
+
+class RenderJobResponse(BaseModel):
+    job_id: str
+    project_id: str
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    progress: int = 0
+    status: str
+    output_path: str | None = None
+    thumbnail_path: str | None = None
+    error_message: str | None = None
+    log_path: str | None = None
