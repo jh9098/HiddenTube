@@ -1,15 +1,26 @@
 from pathlib import Path
+from threading import Thread
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .mapping import choose_scene_id
-from .schemas import ProjectCreateRequest, ProjectUpdateRequest, UploadResponse, ValidateResponse
+from .render_engine import RenderError, fail_render_job, run_render_job
+from .render_job_store import create_render_job, read_render_job_by_id
+from .schemas import (
+    ProjectCreateRequest,
+    ProjectUpdateRequest,
+    RenderJobResponse,
+    UploadResponse,
+    ValidateResponse,
+)
 from .storage import (
     DATA_ROOT,
     create_project,
+    ensure_project_dirs,
     list_assets,
     read_asset_map,
     read_project,
@@ -159,3 +170,84 @@ def validate_render(project_id: str):
     valid = not any(issue.level == "error" for issue in issues)
     return ValidateResponse(valid=valid, issues=issues, missing_assets=missing_assets)
 
+
+@app.post("/api/projects/{project_id}/render", response_model=RenderJobResponse)
+def create_render(project_id: str):
+    try:
+        project = read_project(project_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Project not found") from error
+
+    job = create_render_job(project_id)
+
+    def _worker() -> None:
+        try:
+            run_render_job(project_id, job.job_id, project.render_json)
+        except RenderError as error:
+            fail_render_job(project_id, job.job_id, str(error))
+        except Exception as error:  # noqa: BLE001
+            fail_render_job(project_id, job.job_id, f"예상하지 못한 오류: {error}")
+
+    Thread(target=_worker, daemon=True).start()
+    return read_render_job_by_id(job.job_id)
+
+
+@app.get("/api/render-jobs/{job_id}", response_model=RenderJobResponse)
+def get_render_job(job_id: str):
+    try:
+        return read_render_job_by_id(job_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Render job not found") from error
+
+
+@app.get("/api/render-jobs/{job_id}/log")
+def get_render_log(job_id: str):
+    try:
+        job = read_render_job_by_id(job_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Render job not found") from error
+
+    if not job.log_path:
+        raise HTTPException(status_code=404, detail="Render log not found")
+
+    base_dir = ensure_project_dirs(job.project_id)
+    log_path = base_dir / job.log_path
+    if not log_path.exists():
+        raise HTTPException(status_code=404, detail="Render log not found")
+    return FileResponse(log_path)
+
+
+@app.get("/api/render-jobs/{job_id}/result")
+def get_render_result(job_id: str):
+    try:
+        job = read_render_job_by_id(job_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Render job not found") from error
+
+    if job.status != "done" or not job.output_path:
+        raise HTTPException(status_code=404, detail="Render output not ready")
+
+    base_dir = ensure_project_dirs(job.project_id)
+    output_path = base_dir / job.output_path
+    if not output_path.exists():
+        raise HTTPException(status_code=404, detail="Render output missing")
+
+    return FileResponse(output_path, media_type="video/mp4", filename=f"{job.job_id}.mp4")
+
+
+@app.get("/api/render-jobs/{job_id}/thumbnail")
+def get_render_thumbnail(job_id: str):
+    try:
+        job = read_render_job_by_id(job_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Render job not found") from error
+
+    if job.status != "done" or not job.thumbnail_path:
+        raise HTTPException(status_code=404, detail="Thumbnail not ready")
+
+    base_dir = ensure_project_dirs(job.project_id)
+    thumbnail_path = base_dir / job.thumbnail_path
+    if not thumbnail_path.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail missing")
+
+    return FileResponse(thumbnail_path, media_type="image/jpeg", filename=f"{job.job_id}.jpg")
