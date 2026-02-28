@@ -9,6 +9,7 @@ import {
   WORKFLOW_STORAGE_KEY,
 } from "../utils/workflowData";
 import { createYoutubeTemplate } from "../templates/youtubeTemplate";
+import { buildPromptPackage, executeNodes } from "../workflow/youtubeExecution";
 
 export function useWorkflowState() {
   const initialWorkflow = useMemo(() => createYoutubeTemplate(), []);
@@ -89,6 +90,14 @@ export function useWorkflowState() {
     [selectedNodeId, updateNodeData]
   );
 
+  const updateSelectedNodeManualResult = useCallback(
+    (manualResult) => {
+      if (!selectedNodeId) return;
+      updateNodeData(selectedNodeId, (currentData) => ({ ...currentData, manualResult }));
+    },
+    [selectedNodeId, updateNodeData]
+  );
+
   const updateSelectedNodeStatus = useCallback(
     (nextStatus) => {
       if (!selectedNodeId || !NODE_STATUSES.includes(nextStatus)) return;
@@ -96,6 +105,26 @@ export function useWorkflowState() {
     },
     [selectedNodeId, updateNodeData]
   );
+
+  const executeSelectedNodeOnly = useCallback(() => {
+    if (!selectedNodeId) return;
+    setNodes((currentNodes) => executeNodes(currentNodes, edges, { startNodeId: selectedNodeId, runMode: "single" }));
+  }, [edges, selectedNodeId, setNodes]);
+
+  const executeFromSelectedNode = useCallback(() => {
+    if (!selectedNodeId) return;
+    setNodes((currentNodes) => executeNodes(currentNodes, edges, { startNodeId: selectedNodeId, runMode: "downstream" }));
+  }, [edges, selectedNodeId, setNodes]);
+
+  const executeAllNodes = useCallback(() => {
+    setNodes((currentNodes) => executeNodes(currentNodes, edges));
+  }, [edges, setNodes]);
+
+  const copyPromptPackage = useCallback(async () => {
+    const content = buildPromptPackage(nodes);
+    await navigator.clipboard.writeText(content);
+    return content;
+  }, [nodes]);
 
   const resetWorkflow = useCallback(() => {
     setNodes([]);
@@ -150,7 +179,12 @@ export function useWorkflowState() {
     deleteSelectedNode,
     updateSelectedNodeMeta,
     updateSelectedNodeConfigText,
+    updateSelectedNodeManualResult,
     updateSelectedNodeStatus,
+    executeSelectedNodeOnly,
+    executeFromSelectedNode,
+    executeAllNodes,
+    copyPromptPackage,
     resetWorkflow,
     loadTemplateWorkflow,
     saveToLocalStorage,

@@ -24,9 +24,6 @@ function WorkflowEditorBody() {
       ImagePromptNode: WorkflowNode,
       MotionSubtitleNode: WorkflowNode,
       RenderJsonNode: WorkflowNode,
-      AssetUploadNode: WorkflowNode,
-      RenderNode: WorkflowNode,
-      OutputNode: WorkflowNode,
     }),
     []
   );
@@ -104,7 +101,24 @@ function WorkflowEditorBody() {
         onDelete={workflow.deleteSelectedNode}
         onUpdateMeta={workflow.updateSelectedNodeMeta}
         onUpdateConfig={workflow.updateSelectedNodeConfigText}
+        onUpdateManualResult={workflow.updateSelectedNodeManualResult}
         onUpdateStatus={workflow.updateSelectedNodeStatus}
+        onExecuteNode={() => {
+          workflow.executeSelectedNodeOnly();
+          setMessage("선택 노드를 실행했습니다.");
+        }}
+        onExecuteFromNode={() => {
+          workflow.executeFromSelectedNode();
+          setMessage("선택 노드부터 하위 노드까지 실행했습니다.");
+        }}
+        onCopyPromptPackage={async () => {
+          try {
+            await workflow.copyPromptPackage();
+            setMessage("전체 프롬프트 패키지를 클립보드에 복사했습니다.");
+          } catch (error) {
+            setMessage(`복사 실패: ${error.message}`);
+          }
+        }}
       />
     </div>
   );

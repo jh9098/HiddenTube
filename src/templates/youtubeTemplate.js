@@ -8,9 +8,6 @@ const TEMPLATE_STEPS = [
   "ImagePromptNode",
   "MotionSubtitleNode",
   "RenderJsonNode",
-  "AssetUploadNode",
-  "RenderNode",
-  "OutputNode",
 ];
 
 export function createYoutubeTemplate() {

@@ -1,19 +1,33 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NODE_STATUSES } from "../../utils/workflowData";
+
+function prettyJson(value) {
+  try {
+    return JSON.stringify(value ?? {}, null, 2);
+  } catch {
+    return String(value ?? "");
+  }
+}
 
 function NodeInspectorPanel({
   selectedNode,
   onDelete,
   onUpdateMeta,
   onUpdateConfig,
+  onUpdateManualResult,
   onUpdateStatus,
+  onExecuteNode,
+  onExecuteFromNode,
+  onCopyPromptPackage,
 }) {
   const [configDraft, setConfigDraft] = useState("{}");
+  const [manualDraft, setManualDraft] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const nextText = selectedNode ? JSON.stringify(selectedNode.data.config, null, 2) : "{}";
+    const nextText = selectedNode ? prettyJson(selectedNode.data.config) : "{}";
     setConfigDraft(nextText);
+    setManualDraft(selectedNode?.data?.manualResult ?? "");
     setError("");
   }, [selectedNode]);
 
@@ -26,6 +40,15 @@ function NodeInspectorPanel({
     setError("");
   };
 
+  const handleManualApply = () => {
+    onUpdateManualResult(manualDraft);
+  };
+
+  const promptPreview = useMemo(
+    () => selectedNode?.data?.generatedPrompt || "아직 프롬프트가 생성되지 않았습니다.",
+    [selectedNode]
+  );
+
   if (!selectedNode) {
     return (
       <aside className="side-panel">
@@ -37,7 +60,7 @@ function NodeInspectorPanel({
 
   return (
     <aside className="side-panel">
-      <h2>노드 속성</h2>
+      <h2>노드 상세 패널</h2>
       <div className="field">
         <label htmlFor="node-label">라벨</label>
         <input
@@ -68,23 +91,76 @@ function NodeInspectorPanel({
           ))}
         </select>
       </div>
-      <div className="field">
-        <label htmlFor="node-config">config (JSON)</label>
-        <textarea
-          id="node-config"
-          value={configDraft}
-          onChange={(event) => setConfigDraft(event.target.value)}
-          className="config-editor"
-        />
-        {error && <p className="error-text">{error}</p>}
-        <button type="button" className="toolbar-btn" onClick={handleConfigApply}>
-          config 적용
+
+      <section className="panel-section">
+        <h3>입력 설정</h3>
+        <div className="field">
+          <label htmlFor="node-config">config (JSON)</label>
+          <textarea
+            id="node-config"
+            value={configDraft}
+            onChange={(event) => setConfigDraft(event.target.value)}
+            className="config-editor"
+          />
+          {error && <p className="error-text">{error}</p>}
+          <button type="button" className="toolbar-btn" onClick={handleConfigApply}>
+            config 적용
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-section">
+        <h3>이전 노드 기반 입력 미리보기</h3>
+        <pre className="readonly-box">{prettyJson(selectedNode.data.resolvedInput)}</pre>
+      </section>
+
+      <section className="panel-section">
+        <h3>생성된 프롬프트</h3>
+        <pre className="readonly-box">{promptPreview}</pre>
+      </section>
+
+      <section className="panel-section">
+        <h3>외부 AI 결과 붙여넣기</h3>
+        <div className="field">
+          <label htmlFor="manual-result">manualResult</label>
+          <textarea
+            id="manual-result"
+            value={manualDraft}
+            onChange={(event) => setManualDraft(event.target.value)}
+            className="config-editor"
+            placeholder="외부 AI 결과(JSON/텍스트)를 붙여넣어 주세요"
+          />
+          <button type="button" className="toolbar-btn" onClick={handleManualApply}>
+            결과 저장
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-section">
+        <h3>파싱된 결과 미리보기</h3>
+        <pre className="readonly-box">{prettyJson(selectedNode.data.parsedOutput)}</pre>
+        {selectedNode.data.parseError && (
+          <p className="error-text">파싱 경고: {selectedNode.data.parseError}</p>
+        )}
+      </section>
+
+      <section className="panel-actions">
+        <button type="button" className="toolbar-btn" onClick={onExecuteNode}>
+          노드 실행
         </button>
-      </div>
-      <div className="field">
-        <label>output (읽기 전용)</label>
-        <pre className="readonly-box">{JSON.stringify(selectedNode.data.output, null, 2)}</pre>
-      </div>
+        <button type="button" className="toolbar-btn" onClick={onExecuteFromNode}>
+          다음 노드까지 연속 실행
+        </button>
+        <button type="button" className="toolbar-btn" onClick={onCopyPromptPackage}>
+          전체 프롬프트 패키지 복사
+        </button>
+      </section>
+
+      <section className="panel-section">
+        <h3>output (읽기 전용)</h3>
+        <pre className="readonly-box">{prettyJson(selectedNode.data.output)}</pre>
+      </section>
+
       <button type="button" className="toolbar-btn danger" onClick={onDelete}>
         선택 노드 삭제
       </button>
