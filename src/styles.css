@@ -473,6 +473,19 @@ body,
   border-color: #93c5fd;
 }
 
+
+.preview-workspace {
+  margin-top: 14px;
+  border: 1px solid #b8d0d7;
+  border-radius: 12px;
+  background: #f8fcfd;
+  padding: 12px;
+}
+
+.preview-workspace h4 {
+  margin: 0 0 8px;
+}
+
 .console-item {
   border: 1px solid #dbe1ea;
   border-radius: 10px;

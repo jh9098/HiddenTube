@@ -57,7 +57,73 @@ function gatherUpstreamText(node, allNodes) {
     .join("\n\n");
 }
 
-function PreviewPanel({ nodes, edges, projectTitle, onStart, onSelectNode }) {
+function PreviewWorkspace({ selectedNode, onUpdateNodeManualResult, onExecuteFromNode }) {
+  const [manualResponse, setManualResponse] = useState(selectedNode?.data?.manualResult || "");
+
+  useEffect(() => {
+    setManualResponse(selectedNode?.data?.manualResult || "");
+  }, [selectedNode?.id, selectedNode?.data?.manualResult]);
+
+  if (!selectedNode) {
+    return <p className="panel-help">왼쪽 단계 목록에서 노드를 선택해 작업을 진행해 주세요.</p>;
+  }
+
+  const isContentInputNode = selectedNode.type === "ContentInputNode";
+  const promptText = selectedNode.data?.generatedPrompt || selectedNode.data?.config?.promptTemplate || "";
+
+  return (
+    <section className="preview-workspace">
+      <h4>{selectedNode.data?.label}</h4>
+
+      {!isContentInputNode && (
+        <>
+          <p className="console-subtitle">프롬프트</p>
+          <pre className="readonly-box">{promptText || "아직 프롬프트가 준비되지 않았습니다."}</pre>
+          <div className="step-action-row">
+            <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptText)}>
+              프롬프트 복사
+            </button>
+          </div>
+        </>
+      )}
+
+      <div className="field">
+        <label>{isContentInputNode ? "내용 입력" : "답변 입력"}</label>
+        <textarea
+          className="config-editor"
+          placeholder={isContentInputNode ? "여기에 초안 내용을 입력하세요." : "AI 답변을 붙여넣어 주세요."}
+          value={manualResponse}
+          onChange={(event) => setManualResponse(event.target.value)}
+        />
+      </div>
+
+      <div className="step-action-row">
+        <button
+          type="button"
+          className="toolbar-btn"
+          onClick={() => {
+            onUpdateNodeManualResult(selectedNode.id, manualResponse);
+            onExecuteFromNode(selectedNode.id);
+          }}
+        >
+          저장 후 다음 노드로 전달
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function PreviewPanel({
+  nodes,
+  edges,
+  projectTitle,
+  onStart,
+  onSelectNode,
+  hasStarted,
+  selectedNode,
+  onUpdateNodeManualResult,
+  onExecuteFromNode,
+}) {
   const orderedNodeIds = useMemo(() => buildExecutionOrder(nodes, edges), [nodes, edges]);
   const nodeMap = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const orderedNodes = orderedNodeIds.map((nodeId) => nodeMap.get(nodeId)).filter(Boolean);
@@ -85,6 +151,14 @@ function PreviewPanel({ nodes, edges, projectTitle, onStart, onSelectNode }) {
           );
         })}
       </ul>
+
+      {hasStarted && (
+        <PreviewWorkspace
+          selectedNode={selectedNode}
+          onUpdateNodeManualResult={onUpdateNodeManualResult}
+          onExecuteFromNode={onExecuteFromNode}
+        />
+      )}
     </div>
   );
 }
@@ -226,6 +300,7 @@ function RightExecutionPanel({
   onExecuteFromNode,
 }) {
   const [activeTab, setActiveTab] = useState("preview");
+  const [hasStarted, setHasStarted] = useState(false);
   const projectTitle = useMemo(() => {
     const inputNode = nodes.find((node) => node.type === "ContentInputNode");
     return inputNode?.data?.config?.topic || "쇼츠자동화이걸로 Remix";
@@ -251,7 +326,20 @@ function RightExecutionPanel({
       </nav>
 
       {activeTab === "preview" && (
-        <PreviewPanel nodes={nodes} edges={edges} projectTitle={projectTitle} onStart={onStart} onSelectNode={onSelectNode} />
+        <PreviewPanel
+          nodes={nodes}
+          edges={edges}
+          projectTitle={projectTitle}
+          onStart={() => {
+            onStart();
+            setHasStarted(true);
+          }}
+          onSelectNode={onSelectNode}
+          hasStarted={hasStarted}
+          selectedNode={selectedNode}
+          onUpdateNodeManualResult={onUpdateNodeManualResult}
+          onExecuteFromNode={onExecuteFromNode}
+        />
       )}
       {activeTab === "console" && <ConsolePanel nodes={nodes} edges={edges} onSelectNode={onSelectNode} />}
       {activeTab === "step" && (

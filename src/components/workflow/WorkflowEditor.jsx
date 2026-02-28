@@ -112,7 +112,7 @@ function WorkflowEditorBody() {
             return;
           }
           workflow.setSelectedNodeId(firstNodeId);
-          setMessage("내용입력 노드를 선택했습니다. Step 탭에서 내용을 입력하고 다음 단계로 진행하세요.");
+          setMessage("Preview에서 바로 내용을 입력하고 저장해 다음 노드로 전달할 수 있습니다.");
         }}
         onUpdateNodeLabel={(nodeId, nextLabel) => {
           workflow.updateNodeMeta(nodeId, "label", nextLabel);
