@@ -9,8 +9,7 @@ import ReactFlow, {
 import WorkflowNode from "../nodes/WorkflowNode";
 import TopToolbar from "../panels/TopToolbar";
 import NodeLibraryPanel from "../panels/NodeLibraryPanel";
-import NodeInspectorPanel from "../panels/NodeInspectorPanel";
-import ProjectAssetsPanel from "../project/ProjectAssetsPanel";
+import RightExecutionPanel from "../panels/RightExecutionPanel";
 import { useWorkflowState } from "../../store/useWorkflowState";
 
 function WorkflowEditorBody() {
@@ -101,30 +100,34 @@ function WorkflowEditorBody() {
           <Controls />
         </ReactFlow>
       </main>
-      <NodeInspectorPanel
+      <RightExecutionPanel
+        nodes={workflow.nodes}
+        edges={workflow.edges}
         selectedNode={workflow.selectedNode}
-        onDelete={workflow.deleteSelectedNode}
-        onUpdateMeta={workflow.updateSelectedNodeMeta}
-        onUpdateConfig={workflow.updateSelectedNodeConfigText}
-        onUpdateManualResult={workflow.updateSelectedNodeManualResult}
-        onUpdateStatus={workflow.updateSelectedNodeStatus}
-        onExecuteNode={() => {
-          workflow.executeSelectedNodeOnly();
-          setMessage("선택 노드를 실행했습니다.");
-        }}
-        onExecuteFromNode={() => {
-          workflow.executeFromSelectedNode();
-          setMessage("선택 노드부터 하위 노드까지 실행했습니다.");
-        }}
-        onCopyPromptPackage={async () => {
-          try {
-            await workflow.copyPromptPackage();
-            setMessage("전체 프롬프트 패키지를 클립보드에 복사했습니다.");
-          } catch (error) {
-            setMessage(`복사 실패: ${error.message}`);
+        onSelectNode={workflow.setSelectedNodeId}
+        onStart={() => {
+          const firstNodeId = workflow.nodes.find((node) => node.type === "ContentInputNode")?.id;
+          if (!firstNodeId) {
+            setMessage("시작할 내용입력 노드를 찾지 못했습니다.");
+            return;
           }
+          workflow.executeFromNode(firstNodeId);
+          setMessage("내용입력 노드부터 연결된 노드를 실행했습니다.");
         }}
-        projectPanel={<ProjectAssetsPanel nodes={workflow.nodes} edges={workflow.edges} onMessage={setMessage} onLoadWorkflow={workflow.loadWorkflowObject} />}
+        onUpdateNodeLabel={(nodeId, nextLabel) => {
+          workflow.updateNodeMeta(nodeId, "label", nextLabel);
+        }}
+        onUpdateNodePromptTemplate={(nodeId, promptTemplate) => {
+          workflow.updateNodeConfig(nodeId, (currentConfig) => ({ ...currentConfig, promptTemplate }));
+        }}
+        onUpdateNodeManualResult={(nodeId, manualResult) => {
+          workflow.updateNodeManualResult(nodeId, manualResult);
+          setMessage("사용자 응답을 저장했습니다.");
+        }}
+        onExecuteFromNode={(nodeId) => {
+          workflow.executeFromNode(nodeId);
+          setMessage("선택한 단계부터 하위 노드를 실행했습니다.");
+        }}
       />
     </div>
   );

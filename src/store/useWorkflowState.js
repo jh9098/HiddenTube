@@ -76,6 +76,14 @@ export function useWorkflowState() {
     [selectedNodeId, updateNodeData]
   );
 
+  const updateNodeMeta = useCallback(
+    (nodeId, field, value) => {
+      if (!nodeId) return;
+      updateNodeData(nodeId, (currentData) => ({ ...currentData, [field]: value }));
+    },
+    [updateNodeData]
+  );
+
   const updateSelectedNodeConfigText = useCallback(
     (nextText) => {
       if (!selectedNodeId) return;
@@ -88,6 +96,41 @@ export function useWorkflowState() {
       }
     },
     [selectedNodeId, updateNodeData]
+  );
+
+  const updateNodeConfig = useCallback(
+    (nodeId, configUpdater) => {
+      if (!nodeId) return;
+      updateNodeData(nodeId, (currentData) => {
+        const currentConfig = currentData.config || {};
+        const nextConfig =
+          typeof configUpdater === "function"
+            ? configUpdater(currentConfig)
+            : { ...currentConfig, ...configUpdater };
+
+        return {
+          ...currentData,
+          config: nextConfig,
+        };
+      });
+    },
+    [updateNodeData]
+  );
+
+  const updateNodeManualResult = useCallback(
+    (nodeId, manualResult) => {
+      if (!nodeId) return;
+      updateNodeData(nodeId, (currentData) => ({ ...currentData, manualResult }));
+    },
+    [updateNodeData]
+  );
+
+  const executeFromNode = useCallback(
+    (nodeId) => {
+      if (!nodeId) return;
+      setNodes((currentNodes) => executeNodes(currentNodes, edges, { startNodeId: nodeId, runMode: "downstream" }));
+    },
+    [edges, setNodes]
   );
 
   const updateSelectedNodeManualResult = useCallback(
@@ -191,12 +234,16 @@ export function useWorkflowState() {
     addNode,
     deleteSelectedNode,
     updateSelectedNodeMeta,
+    updateNodeMeta,
     updateSelectedNodeConfigText,
     updateSelectedNodeManualResult,
+    updateNodeConfig,
+    updateNodeManualResult,
     updateSelectedNodeStatus,
     executeSelectedNodeOnly,
     executeFromSelectedNode,
     executeAllNodes,
+    executeFromNode,
     copyPromptPackage,
     resetWorkflow,
     loadTemplateWorkflow,
