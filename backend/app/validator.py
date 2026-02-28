@@ -42,19 +42,22 @@ def validate_render_payload(render_json: dict[str, Any], asset_map: dict[str, An
                 issues.append(_issue("invalid_subtitle_lines", "error", "subtitle_lines는 배열이어야 합니다.", scene_id))
             else:
                 for line_index, line in enumerate(subtitle_lines, start=1):
-                    if not isinstance(line, dict) or not isinstance(line.get("text"), str):
-                        issues.append(
-                            _issue(
-                                "invalid_subtitle_line_item",
-                                "error",
-                                f"subtitle_lines[{line_index}] 형식이 잘못되었습니다.",
-                                scene_id,
-                            )
+                    if isinstance(line, str):
+                        continue
+                    if isinstance(line, dict) and isinstance(line.get("text"), str):
+                        continue
+                    issues.append(
+                        _issue(
+                            "invalid_subtitle_line_item",
+                            "error",
+                            f"subtitle_lines[{line_index}] 형식이 잘못되었습니다.",
+                            scene_id,
                         )
+                    )
 
         duration = scene.get("duration_sec")
-        start_sec = scene.get("start_sec")
-        end_sec = scene.get("end_sec")
+        start_sec = scene.get("start_sec", scene.get("start_time"))
+        end_sec = scene.get("end_sec", scene.get("end_time"))
         if isinstance(duration, (int, float)):
             total_duration += float(duration)
 

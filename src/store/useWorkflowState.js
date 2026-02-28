@@ -166,6 +166,19 @@ export function useWorkflowState() {
     [setEdges, setNodes]
   );
 
+
+  const loadWorkflowObject = useCallback(
+    (workflowObj) => {
+      if (!Array.isArray(workflowObj?.nodes) || !Array.isArray(workflowObj?.edges)) {
+        throw new Error("워크플로우 객체 형식이 올바르지 않습니다.");
+      }
+      setNodes(workflowObj.nodes);
+      setEdges(workflowObj.edges);
+      setSelectedNodeId(null);
+    },
+    [setEdges, setNodes]
+  );
+
   return {
     nodes,
     edges,
@@ -190,6 +203,7 @@ export function useWorkflowState() {
     saveToLocalStorage,
     loadFromLocalStorage,
     importFromJson,
+    loadWorkflowObject,
     serializeCurrentWorkflow: () => serializeWorkflow({ nodes, edges }),
   };
 }

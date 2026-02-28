@@ -124,7 +124,7 @@ function WorkflowEditorBody() {
             setMessage(`복사 실패: ${error.message}`);
           }
         }}
-        projectPanel={<ProjectAssetsPanel nodes={workflow.nodes} edges={workflow.edges} onMessage={setMessage} />}
+        projectPanel={<ProjectAssetsPanel nodes={workflow.nodes} edges={workflow.edges} onMessage={setMessage} onLoadWorkflow={workflow.loadWorkflowObject} />}
       />
     </div>
   );

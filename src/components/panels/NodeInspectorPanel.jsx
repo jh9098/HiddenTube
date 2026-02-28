@@ -50,6 +50,8 @@ function NodeInspectorPanel({
     [selectedNode]
   );
 
+  const promptTemplate = selectedNode?.data?.config?.promptTemplate || "";
+
   return (
     <aside className="side-panel">
       {!selectedNode ? (
@@ -109,12 +111,32 @@ function NodeInspectorPanel({
           </section>
 
           <section className="panel-section">
-            <h3>이전 노드 기반 입력 미리보기</h3>
+            <h3>원본 prompt template</h3>
+            <pre className="readonly-box">{promptTemplate || "(config.promptTemplate 없음)"}</pre>
+          </section>
+
+          <section className="panel-section">
+            <h3>현재 참조 중인 상위 노드</h3>
+            {selectedNode.data.upstreamNodeSummaries?.length ? (
+              <ul>
+                {selectedNode.data.upstreamNodeSummaries.map((item) => (
+                  <li key={item.nodeId}>
+                    {item.label} ({item.type}, id={item.nodeId})
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="panel-help">연결된 상위 노드가 없습니다.</p>
+            )}
+          </section>
+
+          <section className="panel-section">
+            <h3>resolved input/context</h3>
             <pre className="readonly-box">{prettyJson(selectedNode.data.resolvedInput)}</pre>
           </section>
 
           <section className="panel-section">
-            <h3>생성된 프롬프트</h3>
+            <h3>resolved prompt (실행용)</h3>
             <pre className="readonly-box">{promptPreview}</pre>
           </section>
 
@@ -139,6 +161,7 @@ function NodeInspectorPanel({
             <h3>파싱된 결과 미리보기</h3>
             <pre className="readonly-box">{prettyJson(selectedNode.data.parsedOutput)}</pre>
             {selectedNode.data.parseError && <p className="error-text">파싱 경고: {selectedNode.data.parseError}</p>}
+            {selectedNode.data.runError && <p className="error-text">실행 오류: {selectedNode.data.runError}</p>}
           </section>
 
           <section className="panel-actions">

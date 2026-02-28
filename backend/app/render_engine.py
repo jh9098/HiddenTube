@@ -95,11 +95,16 @@ def _subtitle_drawtext_filters(scene: SceneContext, font_path: str) -> str:
     safe_font = font_path.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
     filters: list[str] = []
     for line in scene.subtitle_lines:
-        text = str(line.get("text", "")).strip()
+        if isinstance(line, str):
+            text = line.strip()
+            start = 0.0
+            end = scene.duration
+        else:
+            text = str(line.get("text", "")).strip()
+            start = float(line.get("start_sec", 0.0))
+            end = float(line.get("end_sec", scene.duration))
         if not text:
             continue
-        start = float(line.get("start_sec", 0.0))
-        end = float(line.get("end_sec", scene.duration))
         if end <= start:
             end = min(scene.duration, start + 1.5)
         safe_text = text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
@@ -148,12 +153,13 @@ def _scene_contexts(project_id: str, render_json: dict[str, Any]) -> list[SceneC
         if not audio_path.exists():
             raise RenderError(f"오디오 파일 없음: {audio_path}")
 
-        motion = scene.get("camera_motion", {}) if isinstance(scene.get("camera_motion"), dict) else {}
+        motion_raw = scene.get("camera_motion", {})
+        motion = motion_raw if isinstance(motion_raw, dict) else {}
         transition = scene.get("transition")
         if isinstance(transition, dict):
             transition_type = str(transition.get("type", "cut"))
         else:
-            transition_type = str(scene.get("transition_type", "cut"))
+            transition_type = str(scene.get("transition_to_next") or scene.get("transition_type") or "cut")
 
         contexts.append(
             SceneContext(
@@ -162,7 +168,7 @@ def _scene_contexts(project_id: str, render_json: dict[str, Any]) -> list[SceneC
                 image_path=image_path,
                 audio_path=audio_path,
                 transition=transition_type,
-                motion_type=str(motion.get("type", "hold")),
+                motion_type=str(motion.get("type") or motion_raw or "hold"),
                 motion_strength=str(motion.get("strength", "medium")),
                 subtitle_lines=scene.get("subtitle_lines", []) if isinstance(scene.get("subtitle_lines"), list) else [],
             )
