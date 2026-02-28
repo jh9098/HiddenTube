@@ -15,6 +15,10 @@ function parseRenderJsonFromNodes(nodes) {
     return renderNode.data.parsedOutput;
   }
 
+  if (renderNode.data?.output && Object.keys(renderNode.data.output).length > 0) {
+    return renderNode.data.output;
+  }
+
   if (!renderNode.data?.manualResult) {
     return {};
   }

@@ -21,7 +21,7 @@ import RenderJobStatusPanel from "./RenderJobStatusPanel";
 
 const INITIAL_ASSETS = { assets: {}, asset_map: { images: {}, audio: {} }, scene_ids: [] };
 
-function ProjectAssetsPanel({ nodes, edges, onMessage }) {
+function ProjectAssetsPanel({ nodes, edges, onMessage, onLoadWorkflow }) {
   const [projectId, setProjectId] = useState("");
   const [title, setTitle] = useState("내 프로젝트");
   const [assets, setAssets] = useState(INITIAL_ASSETS);
@@ -74,8 +74,11 @@ function ProjectAssetsPanel({ nodes, edges, onMessage }) {
     if (!projectId) return onMessage("불러올 project_id를 입력하세요.");
     const loaded = await getProject(projectId);
     setTitle(loaded.title || "");
+    if (loaded.workflow_json?.nodes && loaded.workflow_json?.edges && onLoadWorkflow) {
+      onLoadWorkflow(loaded.workflow_json);
+    }
     await syncAssets(projectId);
-    onMessage("프로젝트 메타/자산 정보를 불러왔습니다. (워크플로우 복원은 다음 단계)");
+    onMessage("프로젝트 메타/자산/워크플로우 정보를 불러왔습니다.");
   };
 
   const handleUpload = async (type, event) => {

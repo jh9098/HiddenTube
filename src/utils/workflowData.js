@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { getDefaultPromptTemplate } from "../workflow/youtubePromptTemplates";
 
 export const WORKFLOW_STORAGE_KEY = "hiddentube_workflow_v1";
 
@@ -48,7 +49,6 @@ export const NODE_CATALOG = [
     description: "렌더링용 최종 JSON 초안을 만듭니다.",
     configShape: { parseMode: "flexible", safetyNotes: "", aspectRatio: "16:9" },
   },
-
 ];
 
 export function getNodeDefinition(nodeType) {
@@ -61,7 +61,10 @@ export function makeNodeData(nodeType) {
     type: nodeType,
     label: definition.label,
     description: definition.description,
-    config: { ...definition.configShape },
+    config: {
+      ...definition.configShape,
+      promptTemplate: getDefaultPromptTemplate(nodeType),
+    },
     resolvedInput: {},
     generatedPrompt: "",
     manualResult: "",
@@ -69,6 +72,9 @@ export function makeNodeData(nodeType) {
     parseError: "",
     output: {},
     status: "idle",
+    upstreamNodeIds: [],
+    upstreamNodeSummaries: [],
+    runError: "",
   };
 }
 
