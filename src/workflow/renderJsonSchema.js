@@ -74,6 +74,9 @@ export function normalizeRenderJson(payload, mode = "flexible") {
     : [normalizeScene({}, 0)];
 
   const normalized = {
+    schema_version: src.schema_version || "1.0",
+    format: src.format || "shorts-9:16",
+    extensions: src.extensions && typeof src.extensions === "object" ? src.extensions : {},
     ...src,
     meta,
     scenes,
@@ -81,6 +84,9 @@ export function normalizeRenderJson(payload, mode = "flexible") {
 
   if (mode === "strict") {
     return {
+      schema_version: normalized.schema_version,
+      format: normalized.format,
+      extensions: normalized.extensions,
       meta,
       scenes,
     };
@@ -90,6 +96,14 @@ export function normalizeRenderJson(payload, mode = "flexible") {
 }
 
 export const RENDER_JSON_EXAMPLE = {
+  schema_version: "1.0",
+  format: "shorts-9:16",
+  extensions: {
+    longform: {
+      enabled: false,
+      target_ratio: "16:9",
+    },
+  },
   meta: {
     title: "퇴근 후 10분, 돈 관리 루틴",
     target_audience: "20~30대 직장인",

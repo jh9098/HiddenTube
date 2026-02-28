@@ -7,6 +7,7 @@ function TopToolbar({
   onLoadTemplate,
   onExport,
   onImport,
+  onExecuteAll,
   message,
 }) {
   const fileInputRef = useRef(null);
@@ -36,6 +37,9 @@ function TopToolbar({
       </button>
       <button type="button" className="toolbar-btn" onClick={onExport}>
         JSON 내보내기
+      </button>
+      <button type="button" className="toolbar-btn" onClick={onExecuteAll}>
+        전체 프롬프트 실행
       </button>
       <button
         type="button"

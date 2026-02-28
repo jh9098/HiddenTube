@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   createProject,
   getAssets,
@@ -8,59 +8,54 @@ import {
   uploadAsset,
   validateRender,
 } from "../../api/projectApi";
+import {
+  createRenderJob,
+  getRenderJob,
+  getRenderLogUrl,
+  getRenderResultUrl,
+  getRenderThumbnailUrl,
+} from "../../api/renderApi";
+import { buildProjectPayload, summarizeProjectReadiness } from "./projectWorkflowStatus";
+import ProjectStatusOverview from "./ProjectStatusOverview";
+import RenderJobStatusPanel from "./RenderJobStatusPanel";
 
-function parseRenderJsonFromNodes(nodes) {
-  const renderNode = nodes.find((node) => node.type === "RenderJsonNode");
-  if (!renderNode) return {};
-  if (renderNode.data?.parsedOutput && Object.keys(renderNode.data.parsedOutput).length > 0) {
-    return renderNode.data.parsedOutput;
-  }
-  if (renderNode.data?.manualResult) {
-    try {
-      return JSON.parse(renderNode.data.manualResult);
-    } catch {
-      return {};
-    }
-  }
-  return {};
-}
-
-function buildNodeOutputs(nodes) {
-  return nodes.reduce((acc, node) => {
-    acc[node.id] = {
-      type: node.type,
-      label: node.data.label,
-      output: node.data.output,
-      parsedOutput: node.data.parsedOutput,
-      manualResult: node.data.manualResult,
-    };
-    return acc;
-  }, {});
-}
+const INITIAL_ASSETS = { assets: {}, asset_map: { images: {}, audio: {} }, scene_ids: [] };
 
 function ProjectAssetsPanel({ nodes, edges, onMessage }) {
   const [projectId, setProjectId] = useState("");
   const [title, setTitle] = useState("내 프로젝트");
-  const [assets, setAssets] = useState({ assets: {}, asset_map: { images: {}, audio: {} }, scene_ids: [] });
+  const [assets, setAssets] = useState(INITIAL_ASSETS);
   const [validation, setValidation] = useState(null);
   const [manualMap, setManualMap] = useState({});
+  const [renderJob, setRenderJob] = useState(null);
+  const [renderPolling, setRenderPolling] = useState(false);
 
-  const sceneIds = useMemo(() => assets.scene_ids ?? [], [assets.scene_ids]);
-
-  const syncAssets = async (targetProjectId) => {
-    const result = await getAssets(targetProjectId);
-    setAssets(result);
-  };
-
-  const currentPayload = useMemo(
-    () => ({
-      title,
-      workflow_json: { nodes, edges },
-      node_outputs: buildNodeOutputs(nodes),
-      render_json: parseRenderJsonFromNodes(nodes),
-    }),
-    [edges, nodes, title]
+  const currentPayload = useMemo(() => buildProjectPayload({ title, nodes, edges }), [title, nodes, edges]);
+  const readiness = useMemo(
+    () => summarizeProjectReadiness({ nodes, assets, validation }),
+    [nodes, assets, validation]
   );
+
+  useEffect(() => {
+    if (!renderJob?.job_id || !renderPolling) return;
+    if (renderJob.status === "done" || renderJob.status === "failed") {
+      setRenderPolling(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        setRenderJob(await getRenderJob(renderJob.job_id));
+      } catch (error) {
+        setRenderPolling(false);
+        onMessage(`렌더 상태 조회 실패: ${error.message}`);
+      }
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [renderJob, renderPolling, onMessage]);
+
+  const syncAssets = async (targetProjectId) => setAssets(await getAssets(targetProjectId));
 
   const handleCreateProject = async () => {
     const created = await createProject(currentPayload);
@@ -70,23 +65,17 @@ function ProjectAssetsPanel({ nodes, edges, onMessage }) {
   };
 
   const handleSaveProject = async () => {
-    if (!projectId) {
-      onMessage("프로젝트를 먼저 생성하세요.");
-      return;
-    }
+    if (!projectId) return onMessage("프로젝트를 먼저 생성하세요.");
     await updateProject(projectId, currentPayload);
     onMessage("프로젝트 데이터를 서버에 저장했습니다.");
   };
 
   const handleLoadProject = async () => {
-    if (!projectId) {
-      onMessage("불러올 project_id를 입력하세요.");
-      return;
-    }
+    if (!projectId) return onMessage("불러올 project_id를 입력하세요.");
     const loaded = await getProject(projectId);
     setTitle(loaded.title || "");
     await syncAssets(projectId);
-    onMessage("프로젝트 메타/자산 정보를 불러왔습니다. (워크플로우 복원은 다음 단계) ");
+    onMessage("프로젝트 메타/자산 정보를 불러왔습니다. (워크플로우 복원은 다음 단계)");
   };
 
   const handleUpload = async (type, event) => {
@@ -101,8 +90,7 @@ function ProjectAssetsPanel({ nodes, edges, onMessage }) {
   };
 
   const handleRemap = async (kind, sceneId) => {
-    const key = `${kind}_${sceneId}`;
-    const filename = manualMap[key];
+    const filename = manualMap[`${kind}_${sceneId}`];
     if (!filename || !projectId) return;
     await remapAsset(projectId, { kind, scene_id: sceneId, filename });
     onMessage(`${sceneId}에 ${filename} 수동 매핑 완료`);
@@ -110,18 +98,29 @@ function ProjectAssetsPanel({ nodes, edges, onMessage }) {
   };
 
   const handleValidate = async () => {
-    if (!projectId) {
-      onMessage("검증할 project_id가 필요합니다.");
-      return;
-    }
+    if (!projectId) return onMessage("검증할 project_id가 필요합니다.");
     const result = await validateRender(projectId);
     setValidation(result);
     onMessage(result.valid ? "검증 통과" : "검증 실패(오류 확인 필요)");
   };
 
+  const handleRender = async () => {
+    if (!projectId) return onMessage("렌더를 시작하려면 project_id가 필요합니다.");
+    const job = await createRenderJob(projectId);
+    setRenderJob(job);
+    setRenderPolling(true);
+    onMessage(`렌더 시작: ${job.job_id}`);
+  };
+
+  const resultUrl = renderJob?.job_id ? getRenderResultUrl(renderJob.job_id) : "";
+  const thumbUrl = renderJob?.job_id ? getRenderThumbnailUrl(renderJob.job_id) : "";
+  const logUrl = renderJob?.job_id ? getRenderLogUrl(renderJob.job_id) : "";
+
   return (
     <section className="project-assets-panel">
-      <h3>프로젝트 저장 + 자산 매핑</h3>
+      <h3>프로젝트 저장 + 자산 매핑 + 렌더</h3>
+      <ProjectStatusOverview readiness={readiness} />
+
       <div className="field"><label>project_id</label><input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="proj_xxxxx"/></div>
       <div className="field"><label>title</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
       <div className="panel-actions">
@@ -148,22 +147,19 @@ function ProjectAssetsPanel({ nodes, edges, onMessage }) {
 
       <h4>장면별 매핑</h4>
       <div className="mapping-table">
-        {sceneIds.map((sceneId) => {
+        {assets.scene_ids?.map((sceneId) => {
           const mappedImage = assets.asset_map?.images?.[sceneId] ?? "";
           const mappedAudio = assets.asset_map?.audio?.[sceneId] ?? "";
-          const imageMissing = !mappedImage;
-          const audioMissing = !mappedAudio;
-
           return (
             <div key={sceneId} className="mapping-row">
               <strong>{sceneId}</strong>
-              <select className={imageMissing ? "map-select missing" : "map-select"} value={manualMap[`images_${sceneId}`] ?? mappedImage} onChange={(e) => setManualMap((prev) => ({ ...prev, [`images_${sceneId}`]: e.target.value }))}>
+              <select className={!mappedImage ? "map-select missing" : "map-select"} value={manualMap[`images_${sceneId}`] ?? mappedImage} onChange={(e) => setManualMap((prev) => ({ ...prev, [`images_${sceneId}`]: e.target.value }))}>
                 <option value="">이미지 선택</option>
                 {(assets.assets?.images ?? []).map((file) => <option key={file} value={file}>{file}</option>)}
               </select>
               <button type="button" className="toolbar-btn" onClick={() => void handleRemap("images", sceneId)}>이미지 재배정</button>
 
-              <select className={audioMissing ? "map-select missing" : "map-select"} value={manualMap[`audio_${sceneId}`] ?? mappedAudio} onChange={(e) => setManualMap((prev) => ({ ...prev, [`audio_${sceneId}`]: e.target.value }))}>
+              <select className={!mappedAudio ? "map-select missing" : "map-select"} value={manualMap[`audio_${sceneId}`] ?? mappedAudio} onChange={(e) => setManualMap((prev) => ({ ...prev, [`audio_${sceneId}`]: e.target.value }))}>
                 <option value="">오디오 선택</option>
                 {(assets.assets?.audio ?? []).map((file) => <option key={file} value={file}>{file}</option>)}
               </select>
@@ -175,7 +171,9 @@ function ProjectAssetsPanel({ nodes, edges, onMessage }) {
 
       <div className="panel-actions">
         <button type="button" className="toolbar-btn" onClick={handleValidate}>렌더 전 검증</button>
+        <button type="button" className="toolbar-btn" onClick={handleRender} disabled={!projectId}>렌더 실행</button>
       </div>
+
       {validation && (
         <div className="validation-panel">
           <p className={validation.valid ? "ok-text" : "error-text"}>{validation.valid ? "검증 통과" : "오류 있음"}</p>
@@ -186,6 +184,8 @@ function ProjectAssetsPanel({ nodes, edges, onMessage }) {
           ))}
         </div>
       )}
+
+      <RenderJobStatusPanel renderJob={renderJob} resultUrl={resultUrl} thumbUrl={thumbUrl} logUrl={logUrl} />
     </section>
   );
 }
