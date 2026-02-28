@@ -78,6 +78,10 @@ function WorkflowEditorBody() {
         onLoadTemplate={handleTemplateLoad}
         onExport={handleExport}
         onImport={handleImport}
+        onExecuteAll={() => {
+          workflow.executeAllNodes();
+          setMessage("전체 노드를 실행해 프롬프트/출력을 갱신했습니다.");
+        }}
         message={message}
       />
       <NodeLibraryPanel onAddNode={workflow.addNode} />

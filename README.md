@@ -43,3 +43,6 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+## 5단계 통합 문서
+- `docs-step5-integration-mvp.md`에 전체 연결 흐름, 렌더 UX, 확장 포인트를 정리했습니다.
