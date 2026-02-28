@@ -27,3 +27,19 @@ npm run verify-implementation
 - `skills/verify-implementation/SKILL.md`
 - `skills/verify-implementation/references/firestore-read-checklist.md`
 - `skills/verify-implementation/references/project-rules.md`
+
+## 3단계 백엔드(FastAPI) 실행
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+프론트엔드는 필요시 `.env`에 아래를 설정하세요.
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000
+```
