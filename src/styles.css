@@ -224,3 +224,19 @@ body,
   color: #b91c1c;
   border-color: #fca5a5;
 }
+
+.panel-section {
+  margin-bottom: 16px;
+}
+
+.panel-section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.panel-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
