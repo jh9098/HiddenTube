@@ -10,6 +10,7 @@ import WorkflowNode from "../nodes/WorkflowNode";
 import TopToolbar from "../panels/TopToolbar";
 import NodeLibraryPanel from "../panels/NodeLibraryPanel";
 import NodeInspectorPanel from "../panels/NodeInspectorPanel";
+import ProjectAssetsPanel from "../project/ProjectAssetsPanel";
 import { useWorkflowState } from "../../store/useWorkflowState";
 
 function WorkflowEditorBody() {
@@ -119,6 +120,7 @@ function WorkflowEditorBody() {
             setMessage(`복사 실패: ${error.message}`);
           }
         }}
+        projectPanel={<ProjectAssetsPanel nodes={workflow.nodes} edges={workflow.edges} onMessage={setMessage} />}
       />
     </div>
   );

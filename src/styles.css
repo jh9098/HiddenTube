@@ -240,3 +240,54 @@ body,
   gap: 8px;
   margin-bottom: 16px;
 }
+
+.panel-divider {
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  margin: 18px 0;
+}
+
+.project-assets-panel h3,
+.project-assets-panel h4 {
+  margin: 0 0 10px;
+}
+
+.mapping-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.mapping-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.map-select.missing {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.validation-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.ok-text {
+  color: #166534;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.warn-text {
+  color: #b45309;
+  font-size: 12px;
+  margin: 4px 0;
+}
