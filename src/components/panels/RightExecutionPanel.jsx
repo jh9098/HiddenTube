@@ -6,7 +6,7 @@ function getNodeExecutionState(node) {
   const hasResolvedInput = Boolean(node?.data?.resolvedInput && Object.keys(node.data.resolvedInput).length > 0);
 
   if (node?.type === "ContentInputNode") {
-    return hasResolvedInput ? "done" : "pending";
+    return hasManualResult ? "done" : "pending";
   }
 
   if (hasManualResult) return "done";
@@ -140,6 +140,7 @@ function StepPanel({
 
   const promptTemplate = selectedNode.data?.config?.promptTemplate || "";
   const upstreamText = gatherUpstreamText(selectedNode, nodes);
+  const isContentInputNode = selectedNode.type === "ContentInputNode";
 
   return (
     <div className="execution-pane">
@@ -149,47 +150,53 @@ function StepPanel({
         <input value={selectedNode.data?.label || ""} onChange={(event) => onUpdateNodeLabel(selectedNode.id, event.target.value)} />
       </div>
 
-      <div className="field">
-        <label>명령어(Prompt)</label>
-        <textarea
-          className="config-editor"
-          value={promptTemplate}
-          onChange={(event) => onUpdateNodePromptTemplate(selectedNode.id, event.target.value)}
-        />
-      </div>
+      {!isContentInputNode && (
+        <>
+          <div className="field">
+            <label>명령어(Prompt)</label>
+            <textarea
+              className="config-editor"
+              value={promptTemplate}
+              onChange={(event) => onUpdateNodePromptTemplate(selectedNode.id, event.target.value)}
+            />
+          </div>
 
-      <section className="panel-section">
-        <h4>이전 노드 응답 컨텍스트</h4>
-        <pre className="readonly-box">{upstreamText || "이전 노드 연결이 없습니다."}</pre>
-      </section>
+          <section className="panel-section">
+            <h4>이전 노드 응답 컨텍스트</h4>
+            <pre className="readonly-box">{upstreamText || "이전 노드 연결이 없습니다."}</pre>
+          </section>
 
-      <div className="step-action-row">
-        <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptTemplate)}>
-          프롬프트 복사
-        </button>
-      </div>
+          <div className="step-action-row">
+            <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptTemplate)}>
+              프롬프트 복사
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="field">
         <label>사용자 응답 입력</label>
         <textarea
           className="config-editor"
-          placeholder="각 단계에서 받은 답변을 붙여넣어 주세요"
+          placeholder={isContentInputNode ? "여기에 내용을 직접 입력해 주세요" : "각 단계에서 받은 답변을 붙여넣어 주세요"}
           value={manualResponse}
           onChange={(event) => setManualResponse(event.target.value)}
         />
       </div>
 
-      <div className="field">
-        <label>업로드가 필요한 경우</label>
-        <input
-          type="file"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            setUploadFileName(file ? file.name : "");
-          }}
-        />
-        {uploadFileName ? <p className="panel-help">선택 파일: {uploadFileName}</p> : null}
-      </div>
+      {!isContentInputNode && (
+        <div className="field">
+          <label>업로드가 필요한 경우</label>
+          <input
+            type="file"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              setUploadFileName(file ? file.name : "");
+            }}
+          />
+          {uploadFileName ? <p className="panel-help">선택 파일: {uploadFileName}</p> : null}
+        </div>
+      )}
 
       <div className="step-action-row">
         <button

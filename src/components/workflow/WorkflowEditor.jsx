@@ -111,8 +111,8 @@ function WorkflowEditorBody() {
             setMessage("시작할 내용입력 노드를 찾지 못했습니다.");
             return;
           }
-          workflow.executeFromNode(firstNodeId);
-          setMessage("내용입력 노드부터 연결된 노드를 실행했습니다.");
+          workflow.setSelectedNodeId(firstNodeId);
+          setMessage("내용입력 노드를 선택했습니다. Step 탭에서 내용을 입력하고 다음 단계로 진행하세요.");
         }}
         onUpdateNodeLabel={(nodeId, nextLabel) => {
           workflow.updateNodeMeta(nodeId, "label", nextLabel);
