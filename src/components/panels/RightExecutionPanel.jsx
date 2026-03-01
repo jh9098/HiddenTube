@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { resolvePreviewPrompt } from "./previewPromptResolver";
+import ProductionWorkspace from "./ProductionWorkspace";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
@@ -58,7 +60,7 @@ function collectConnectedNodeIds(startNodeId, edges) {
   return visited;
 }
 
-function PreviewWorkspace({ displayNodes, onExecuteFromNode }) {
+function PreviewWorkspace({ displayNodes, nodes, edges, onExecuteFromNode, onMessage }) {
   const [manualResponses, setManualResponses] = useState({});
 
   useEffect(() => {
@@ -68,6 +70,22 @@ function PreviewWorkspace({ displayNodes, onExecuteFromNode }) {
     });
     setManualResponses(next);
   }, [displayNodes]);
+
+  const handleCopyPrompt = async (node) => {
+    const resolvedPrompt = resolvePreviewPrompt(node, nodes, edges, manualResponses);
+
+    if (!resolvedPrompt?.trim()) {
+      onMessage?.("복사할 프롬프트가 없습니다. 먼저 프롬프트를 생성해 주세요.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(resolvedPrompt);
+      onMessage?.("프롬프트를 복사했습니다.");
+    } catch (error) {
+      onMessage?.("프롬프트 복사에 실패했습니다. 브라우저 권한을 확인해 주세요.");
+    }
+  };
 
   if (!displayNodes.length) {
     return <p className="panel-help">연결된 실행 노드가 없습니다. 노드 연결 상태를 확인해 주세요.</p>;
@@ -82,6 +100,14 @@ function PreviewWorkspace({ displayNodes, onExecuteFromNode }) {
         return (
           <article key={node.id} className="console-item">
             <h4>{node.data?.label}</h4>
+
+            {!isContentInputNode && (
+              <div className="step-action-row">
+                <button type="button" className="toolbar-btn" onClick={() => handleCopyPrompt(node)}>
+                  프롬프트 복사
+                </button>
+              </div>
+            )}
 
             <div className="field">
               <label>{isContentInputNode ? "내용 입력" : "답변 입력"}</label>
@@ -120,7 +146,8 @@ function PreviewPanel({
   projectTitle,
   onStart,
   hasStarted,
-  onExecuteFromNode
+  onExecuteFromNode,
+  onMessage,
 }) {
   const orderedNodeIds = useMemo(() => buildExecutionOrder(nodes, edges), [nodes, edges]);
   const nodeMap = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
@@ -156,7 +183,10 @@ function PreviewPanel({
       {hasStarted && (
         <PreviewWorkspace
           displayNodes={displayNodes}
+          nodes={nodes}
+          edges={edges}
           onExecuteFromNode={onExecuteFromNode}
+          onMessage={onMessage}
         />
       )}
     </div>
@@ -243,6 +273,7 @@ function RightExecutionPanel({
   onUpdateNodePromptTemplate,
   onExecuteFromNode,
   onDeleteNode,
+  onMessage,
 }) {
   const [activeTab, setActiveTab] = useState("preview");
   const [hasStarted, setHasStarted] = useState(false);
@@ -256,6 +287,9 @@ function RightExecutionPanel({
       <nav className="execution-tabs">
         <button type="button" className={activeTab === "preview" ? "active" : ""} onClick={() => setActiveTab("preview")}>
           Preview
+        </button>
+        <button type="button" className={activeTab === "production" ? "active" : ""} onClick={() => setActiveTab("production")}>
+          Production
         </button>
         <button type="button" className={activeTab === "console" ? "active" : ""} onClick={() => setActiveTab("console")}>
           Console
@@ -281,8 +315,10 @@ function RightExecutionPanel({
           }}
           hasStarted={hasStarted}
           onExecuteFromNode={onExecuteFromNode}
+          onMessage={onMessage}
         />
       )}
+      {activeTab === "production" && <ProductionWorkspace />}
       {activeTab === "console" && <ConsolePanel nodes={nodes} edges={edges} onSelectNode={onSelectNode} />}
       {activeTab === "step" && (
         <StepPanel

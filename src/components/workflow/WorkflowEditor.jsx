@@ -168,6 +168,7 @@ function WorkflowEditorBody() {
         selectedNode={workflow.selectedNode}
         onSelectNode={workflow.setSelectedNodeId}
         onDeleteNode={(nodeId) => workflow.deleteNodesByIds([nodeId])}
+        onMessage={(nextMessage) => setMessage(nextMessage)}
         onStart={() => {
           const firstNodeId = workflow.nodes.find((node) => node.type === "ContentInputNode")?.id;
           if (!firstNodeId) {
