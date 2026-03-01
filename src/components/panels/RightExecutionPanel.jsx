@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { resolvePreviewPrompt } from "./previewPromptResolver";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
@@ -59,7 +58,7 @@ function collectConnectedNodeIds(startNodeId, edges) {
   return visited;
 }
 
-function PreviewWorkspace({ displayNodes, nodes, edges, onUpdateNodeManualResult, onExecuteFromNode }) {
+function PreviewWorkspace({ displayNodes, onExecuteFromNode }) {
   const [manualResponses, setManualResponses] = useState({});
 
   useEffect(() => {
@@ -78,24 +77,11 @@ function PreviewWorkspace({ displayNodes, nodes, edges, onUpdateNodeManualResult
     <section className="preview-workspace">
       {displayNodes.map((node) => {
         const isContentInputNode = node.type === "ContentInputNode";
-        const promptText = resolvePreviewPrompt(node, nodes, edges, manualResponses);
         const manualResponse = manualResponses[node.id] ?? "";
 
         return (
           <article key={node.id} className="console-item">
             <h4>{node.data?.label}</h4>
-
-            {!isContentInputNode && (
-              <div className="step-action-row">
-                <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptText)}>
-                  프롬프트 복사
-                </button>
-              </div>
-            )}
-
-            {!isContentInputNode && promptText && (
-              <pre className="readonly-box">{promptText}</pre>
-            )}
 
             <div className="field">
               <label>{isContentInputNode ? "내용 입력" : "답변 입력"}</label>
@@ -134,7 +120,6 @@ function PreviewPanel({
   projectTitle,
   onStart,
   hasStarted,
-  onUpdateNodeManualResult,
   onExecuteFromNode
 }) {
   const orderedNodeIds = useMemo(() => buildExecutionOrder(nodes, edges), [nodes, edges]);
@@ -171,9 +156,6 @@ function PreviewPanel({
       {hasStarted && (
         <PreviewWorkspace
           displayNodes={displayNodes}
-          nodes={nodes}
-          edges={edges}
-          onUpdateNodeManualResult={onUpdateNodeManualResult}
           onExecuteFromNode={onExecuteFromNode}
         />
       )}
@@ -259,7 +241,6 @@ function RightExecutionPanel({
   onStart,
   onUpdateNodeLabel,
   onUpdateNodePromptTemplate,
-  onUpdateNodeManualResult,
   onExecuteFromNode,
   onDeleteNode,
 }) {
@@ -299,7 +280,6 @@ function RightExecutionPanel({
             setHasStarted(true);
           }}
           hasStarted={hasStarted}
-          onUpdateNodeManualResult={onUpdateNodeManualResult}
           onExecuteFromNode={onExecuteFromNode}
         />
       )}
