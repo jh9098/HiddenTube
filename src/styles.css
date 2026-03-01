@@ -538,6 +538,28 @@ body,
   margin: 0 0 14px;
 }
 
+
+.mention-suggestion-box {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mention-suggestion-item {
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.mention-suggestion-item:hover {
+  background: #e0e7ff;
+}
+
 .step-action-row {
   margin-bottom: 12px;
 }
