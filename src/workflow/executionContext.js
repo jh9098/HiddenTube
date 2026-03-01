@@ -19,6 +19,51 @@ function toSerializable(value) {
   }
 }
 
+function normalizeContentInputFromConfig(config = {}) {
+  return {
+    topic: config.topic || "",
+    original_text: config.originalText || "",
+    target_audience: config.targetAudience || "",
+    tone: config.tone || "정보형",
+    cta: config.cta || "",
+    estimated_total_duration_sec: Number(config.durationSec || 60),
+  };
+}
+
+function parseContentInputManualResult(manualResult, config) {
+  const base = normalizeContentInputFromConfig(config);
+  const trimmed = String(manualResult || "").trim();
+  if (!trimmed) return { content_input: base };
+
+  const parsed = safeJsonParse(trimmed);
+  if (parsed?.ok && parsed.value && typeof parsed.value === "object") {
+    const source = parsed.value.content_input && typeof parsed.value.content_input === "object"
+      ? parsed.value.content_input
+      : parsed.value;
+
+    return {
+      content_input: {
+        topic: source.topic ?? source.subject ?? base.topic,
+        original_text: source.original_text ?? source.originalText ?? source.text ?? base.original_text,
+        target_audience: source.target_audience ?? source.targetAudience ?? base.target_audience,
+        tone: source.tone ?? base.tone,
+        cta: source.cta ?? base.cta,
+        estimated_total_duration_sec: Number(
+          source.estimated_total_duration_sec ?? source.estimatedTotalDurationSec ?? source.durationSec ?? base.estimated_total_duration_sec
+        ),
+      },
+    };
+  }
+
+  return {
+    content_input: {
+      ...base,
+      original_text: trimmed,
+      topic: base.topic || trimmed.slice(0, 80),
+    },
+  };
+}
+
 export function getNodePreferredOutput(node) {
   const output = node?.data?.output;
   if (output && typeof output === "object" && Object.keys(output).length > 0) return output;
@@ -60,16 +105,10 @@ export function buildIncomingRefs(nodeId, edges, nodeMap, outputMap) {
 
 export function toNodeOutput(nodeType, parsedOutput, config) {
   if (nodeType === "ContentInputNode") {
-    return {
-      content_input: {
-        topic: config.topic,
-        original_text: config.originalText,
-        target_audience: config.targetAudience,
-        tone: config.tone,
-        cta: config.cta,
-        estimated_total_duration_sec: Number(config.durationSec || 60),
-      },
-    };
+    if (parsedOutput?.content_input && typeof parsedOutput.content_input === "object") {
+      return { content_input: parsedOutput.content_input };
+    }
+    return { content_input: normalizeContentInputFromConfig(config) };
   }
 
   if (!parsedOutput || typeof parsedOutput !== "object") return {};
@@ -140,7 +179,7 @@ function buildRenderDraft(resolvedInput, config, mode) {
 export function parseManualResult(nodeType, manualResult, mode, resolvedInput, config) {
   if (nodeType === "ContentInputNode") {
     return {
-      parsedOutput: toNodeOutput(nodeType, null, config),
+      parsedOutput: parseContentInputManualResult(manualResult, config),
       parseError: "",
     };
   }
