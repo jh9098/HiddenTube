@@ -92,6 +92,7 @@ export function buildIncomingRefs(nodeId, edges, nodeMap, outputMap) {
         nodeId: src.id,
         type: src.type,
         label: src.data?.label || src.type,
+        manualResult: String(src.data?.manualResult || ""),
         output: toSerializable(outputMap.get(src.id) || {}),
       };
     })
