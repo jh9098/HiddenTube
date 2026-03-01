@@ -1,25 +1,197 @@
-import { useCallback, useMemo, useState } from "react";
-import { addEdge, useEdgesState, useNodesState } from "reactflow";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { addEdge, applyEdgeChanges, applyNodeChanges } from "reactflow";
 
 import {
   createWorkflowNode,
   deserializeWorkflow,
   NODE_STATUSES,
   serializeWorkflow,
+  WORKFLOW_HISTORY_STORAGE_KEY,
   WORKFLOW_STORAGE_KEY,
 } from "../utils/workflowData";
 import { createYoutubeTemplate } from "../templates/youtubeTemplate";
 import { buildPromptPackage, executeNodes } from "../workflow/youtubeExecution";
+import {
+  createHistoryState,
+  pushHistorySnapshot,
+  redoHistory,
+  replacePresent,
+  undoHistory,
+} from "./workflowHistory";
+
+const AUTO_SAVE_DELAY_MS = 500;
+
+function sanitizeSelectionIds(ids) {
+  return [...new Set((ids || []).filter(Boolean))];
+}
+
+function getInitialPresent() {
+  try {
+    const historyText = localStorage.getItem(WORKFLOW_HISTORY_STORAGE_KEY);
+    if (historyText) {
+      const parsedHistory = JSON.parse(historyText);
+      if (Array.isArray(parsedHistory?.present?.nodes) && Array.isArray(parsedHistory?.present?.edges)) {
+        return parsedHistory.present;
+      }
+    }
+
+    const workflowText = localStorage.getItem(WORKFLOW_STORAGE_KEY);
+    if (workflowText) {
+      return deserializeWorkflow(workflowText);
+    }
+  } catch {
+    // 파싱 실패 시 템플릿으로 fallback
+  }
+
+  return createYoutubeTemplate();
+}
 
 export function useWorkflowState() {
-  const initialWorkflow = useMemo(() => createYoutubeTemplate(), []);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialWorkflow.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialWorkflow.edges);
+  const [history, setHistory] = useState(() => createHistoryState(getInitialPresent()));
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState([]);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState([]);
+
+  const nodes = history.present.nodes;
+  const edges = history.present.edges;
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId]
+  );
+
+  const selectSingleNode = useCallback((nodeId) => {
+    setSelectedNodeId(nodeId ?? null);
+    setSelectedNodeIds(nodeId ? [nodeId] : []);
+    if (nodeId) {
+      setSelectedEdgeIds([]);
+    }
+  }, []);
+
+  const commitPresent = useCallback((nextPresent, options = {}) => {
+    const { recordHistory = true } = options;
+
+    setHistory((currentHistory) => {
+      if (currentHistory.present === nextPresent) {
+        return currentHistory;
+      }
+
+      if (recordHistory) {
+        return pushHistorySnapshot(currentHistory, nextPresent);
+      }
+
+      return replacePresent(currentHistory, nextPresent);
+    });
+  }, []);
+
+  const setNodes = useCallback(
+    (updater, options = {}) => {
+      const { recordHistory = true } = options;
+      const nextNodes = typeof updater === "function" ? updater(nodes) : updater;
+      commitPresent({ nodes: nextNodes, edges }, { recordHistory });
+    },
+    [commitPresent, edges, nodes]
+  );
+
+  const setEdges = useCallback(
+    (updater, options = {}) => {
+      const { recordHistory = true } = options;
+      const nextEdges = typeof updater === "function" ? updater(edges) : updater;
+      commitPresent({ nodes, edges: nextEdges }, { recordHistory });
+    },
+    [commitPresent, edges, nodes]
+  );
+
+  const syncSelectionAfterDelete = useCallback((nextNodes, nextEdges) => {
+    const nextNodeIds = new Set(nextNodes.map((node) => node.id));
+    const nextEdgeIds = new Set(nextEdges.map((edge) => edge.id));
+
+    setSelectedNodeIds((current) => current.filter((id) => nextNodeIds.has(id)));
+    setSelectedEdgeIds((current) => current.filter((id) => nextEdgeIds.has(id)));
+    setSelectedNodeId((currentId) => (currentId && nextNodeIds.has(currentId) ? currentId : null));
+  }, []);
+
+  const onNodesChange = useCallback(
+    (changes) => {
+      const hasStructuralChange = changes.some((change) => change.type !== "select");
+      const nextNodes = applyNodeChanges(changes, nodes);
+      setNodes(nextNodes, { recordHistory: hasStructuralChange });
+    },
+    [nodes, setNodes]
+  );
+
+  const onEdgesChange = useCallback(
+    (changes) => {
+      const hasStructuralChange = changes.some((change) => change.type !== "select");
+      const nextEdges = applyEdgeChanges(changes, edges);
+      setEdges(nextEdges, { recordHistory: hasStructuralChange });
+    },
+    [edges, setEdges]
+  );
+
+  const setSelection = useCallback(({ nodes: selectedNodes = [], edges: selectedEdges = [] }) => {
+    const nodeIds = sanitizeSelectionIds(selectedNodes.map((node) => node.id));
+    const edgeIds = sanitizeSelectionIds(selectedEdges.map((edge) => edge.id));
+
+    setSelectedNodeIds(nodeIds);
+    setSelectedEdgeIds(edgeIds);
+    setSelectedNodeId(nodeIds[0] ?? null);
+  }, []);
+
+  const deleteNodesByIds = useCallback(
+    (nodeIds) => {
+      const safeNodeIds = sanitizeSelectionIds(nodeIds);
+      if (!safeNodeIds.length) return;
+
+      const idSet = new Set(safeNodeIds);
+      const nextNodes = nodes.filter((node) => !idSet.has(node.id));
+      const nextEdges = edges.filter((edge) => !idSet.has(edge.source) && !idSet.has(edge.target));
+
+      commitPresent({ nodes: nextNodes, edges: nextEdges });
+      syncSelectionAfterDelete(nextNodes, nextEdges);
+    },
+    [commitPresent, edges, nodes, syncSelectionAfterDelete]
+  );
+
+  const deleteEdgesByIds = useCallback(
+    (edgeIds) => {
+      const safeEdgeIds = sanitizeSelectionIds(edgeIds);
+      if (!safeEdgeIds.length) return;
+
+      const idSet = new Set(safeEdgeIds);
+      const nextEdges = edges.filter((edge) => !idSet.has(edge.id));
+
+      commitPresent({ nodes, edges: nextEdges });
+      syncSelectionAfterDelete(nodes, nextEdges);
+    },
+    [commitPresent, edges, nodes, syncSelectionAfterDelete]
+  );
+
+  const deleteSelectedElements = useCallback(() => {
+    if (selectedNodeIds.length > 0) {
+      deleteNodesByIds(selectedNodeIds);
+      return;
+    }
+
+    if (selectedEdgeIds.length > 0) {
+      deleteEdgesByIds(selectedEdgeIds);
+    }
+  }, [deleteEdgesByIds, deleteNodesByIds, selectedEdgeIds, selectedNodeIds]);
+
+  const deleteSelectedNode = useCallback(() => {
+    if (!selectedNodeId) return;
+    deleteNodesByIds([selectedNodeId]);
+  }, [deleteNodesByIds, selectedNodeId]);
+
+  const detachIncomingEdges = useCallback(
+    (nodeId) => {
+      if (!nodeId) return;
+      const nextEdges = edges.filter((edge) => edge.target !== nodeId);
+      if (nextEdges.length === edges.length) return;
+      commitPresent({ nodes, edges: nextEdges });
+      syncSelectionAfterDelete(nodes, nextEdges);
+    },
+    [commitPresent, edges, nodes, syncSelectionAfterDelete]
   );
 
   const onConnect = useCallback(
@@ -39,19 +211,10 @@ export function useWorkflowState() {
         y: 120 + Math.random() * 200,
       });
       setNodes((currentNodes) => [...currentNodes, nextNode]);
-      setSelectedNodeId(nextNode.id);
+      selectSingleNode(nextNode.id);
     },
-    [setNodes]
+    [selectSingleNode, setNodes]
   );
-
-  const deleteSelectedNode = useCallback(() => {
-    if (!selectedNodeId) return;
-    setNodes((currentNodes) => currentNodes.filter((node) => node.id !== selectedNodeId));
-    setEdges((currentEdges) =>
-      currentEdges.filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId)
-    );
-    setSelectedNodeId(null);
-  }, [selectedNodeId, setEdges, setNodes]);
 
   const updateNodeData = useCallback(
     (nodeId, updater) => {
@@ -170,23 +333,24 @@ export function useWorkflowState() {
   }, [nodes]);
 
   const resetWorkflow = useCallback(() => {
-    setNodes([]);
-    setEdges([]);
-    setSelectedNodeId(null);
-  }, [setEdges, setNodes]);
+    commitPresent({ nodes: [], edges: [] });
+    selectSingleNode(null);
+    setSelectedEdgeIds([]);
+  }, [commitPresent, selectSingleNode]);
 
   const loadTemplateWorkflow = useCallback(() => {
     const template = createYoutubeTemplate();
-    setNodes(template.nodes);
-    setEdges(template.edges);
-    setSelectedNodeId(null);
-  }, [setEdges, setNodes]);
+    commitPresent({ nodes: template.nodes, edges: template.edges });
+    selectSingleNode(null);
+    setSelectedEdgeIds([]);
+  }, [commitPresent, selectSingleNode]);
 
   const saveToLocalStorage = useCallback(() => {
     const serialized = serializeWorkflow({ nodes, edges });
     localStorage.setItem(WORKFLOW_STORAGE_KEY, serialized);
+    localStorage.setItem(WORKFLOW_HISTORY_STORAGE_KEY, JSON.stringify(history));
     return serialized;
-  }, [edges, nodes]);
+  }, [edges, history, nodes]);
 
   const loadFromLocalStorage = useCallback(() => {
     const savedText = localStorage.getItem(WORKFLOW_STORAGE_KEY);
@@ -194,45 +358,76 @@ export function useWorkflowState() {
       throw new Error("저장된 워크플로우가 없습니다.");
     }
     const loaded = deserializeWorkflow(savedText);
-    setNodes(loaded.nodes);
-    setEdges(loaded.edges);
-    setSelectedNodeId(null);
-  }, [setEdges, setNodes]);
+    commitPresent({ nodes: loaded.nodes, edges: loaded.edges });
+    selectSingleNode(null);
+    setSelectedEdgeIds([]);
+  }, [commitPresent, selectSingleNode]);
 
   const importFromJson = useCallback(
     (rawText) => {
       const loaded = deserializeWorkflow(rawText);
-      setNodes(loaded.nodes);
-      setEdges(loaded.edges);
-      setSelectedNodeId(null);
+      commitPresent({ nodes: loaded.nodes, edges: loaded.edges });
+      selectSingleNode(null);
+      setSelectedEdgeIds([]);
     },
-    [setEdges, setNodes]
+    [commitPresent, selectSingleNode]
   );
-
 
   const loadWorkflowObject = useCallback(
     (workflowObj) => {
       if (!Array.isArray(workflowObj?.nodes) || !Array.isArray(workflowObj?.edges)) {
         throw new Error("워크플로우 객체 형식이 올바르지 않습니다.");
       }
-      setNodes(workflowObj.nodes);
-      setEdges(workflowObj.edges);
-      setSelectedNodeId(null);
+      commitPresent({ nodes: workflowObj.nodes, edges: workflowObj.edges });
+      selectSingleNode(null);
+      setSelectedEdgeIds([]);
     },
-    [setEdges, setNodes]
+    [commitPresent, selectSingleNode]
   );
+
+  const undo = useCallback(() => {
+    setHistory((currentHistory) => undoHistory(currentHistory));
+    selectSingleNode(null);
+    setSelectedEdgeIds([]);
+  }, [selectSingleNode]);
+
+  const redo = useCallback(() => {
+    setHistory((currentHistory) => redoHistory(currentHistory));
+    selectSingleNode(null);
+    setSelectedEdgeIds([]);
+  }, [selectSingleNode]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const serialized = serializeWorkflow({ nodes, edges });
+      localStorage.setItem(WORKFLOW_STORAGE_KEY, serialized);
+      localStorage.setItem(WORKFLOW_HISTORY_STORAGE_KEY, JSON.stringify(history));
+    }, AUTO_SAVE_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [edges, history, nodes]);
 
   return {
     nodes,
     edges,
     selectedNode,
     selectedNodeId,
+    selectedNodeIds,
+    selectedEdgeIds,
+    canUndo: history.past.length > 0,
+    canRedo: history.future.length > 0,
     onNodesChange,
     onEdgesChange,
     onConnect,
-    setSelectedNodeId,
+    setSelectedNodeId: selectSingleNode,
+    setSelection,
     addNode,
     deleteSelectedNode,
+    deleteSelectedElements,
+    deleteNodesByIds,
+    detachIncomingEdges,
     updateSelectedNodeMeta,
     updateNodeMeta,
     updateSelectedNodeConfigText,
@@ -251,6 +446,8 @@ export function useWorkflowState() {
     loadFromLocalStorage,
     importFromJson,
     loadWorkflowObject,
+    undo,
+    redo,
     serializeCurrentWorkflow: () => serializeWorkflow({ nodes, edges }),
   };
 }

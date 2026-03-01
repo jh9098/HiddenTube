@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -26,6 +26,18 @@ function WorkflowEditorBody() {
       RenderJsonNode: WorkflowNode,
     }),
     []
+  );
+
+  const nodesWithActions = useMemo(
+    () =>
+      workflow.nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          onDetachIncoming: workflow.detachIncomingEdges,
+        },
+      })),
+    [workflow.detachIncomingEdges, workflow.nodes]
   );
 
   const handleSave = () => {
@@ -68,6 +80,35 @@ function WorkflowEditorBody() {
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const isMetaPressed = event.ctrlKey || event.metaKey;
+
+      if (event.key === "Delete") {
+        event.preventDefault();
+        workflow.deleteSelectedElements();
+        return;
+      }
+
+      if (!isMetaPressed) return;
+
+      const key = event.key.toLowerCase();
+      if (key !== "z") return;
+
+      event.preventDefault();
+
+      if (event.shiftKey) {
+        workflow.redo();
+        return;
+      }
+
+      workflow.undo();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [workflow]);
+
   return (
     <div className="workflow-layout">
       <TopToolbar
@@ -81,18 +122,23 @@ function WorkflowEditorBody() {
           workflow.executeAllNodes();
           setMessage("전체 노드를 실행해 프롬프트/출력을 갱신했습니다.");
         }}
+        onUndo={workflow.undo}
+        onRedo={workflow.redo}
+        canUndo={workflow.canUndo}
+        canRedo={workflow.canRedo}
         message={message}
       />
       <NodeLibraryPanel onAddNode={workflow.addNode} />
       <main className="canvas-area">
         <ReactFlow
-          nodes={workflow.nodes}
+          nodes={nodesWithActions}
           edges={workflow.edges}
           onNodesChange={workflow.onNodesChange}
           onEdgesChange={workflow.onEdgesChange}
           onConnect={workflow.onConnect}
           nodeTypes={nodeTypes}
-          onSelectionChange={({ nodes }) => workflow.setSelectedNodeId(nodes?.[0]?.id ?? null)}
+          onSelectionChange={workflow.setSelection}
+          deleteKeyCode={["Delete"]}
           fitView
         >
           <Background gap={20} size={1} />
@@ -105,6 +151,7 @@ function WorkflowEditorBody() {
         edges={workflow.edges}
         selectedNode={workflow.selectedNode}
         onSelectNode={workflow.setSelectedNodeId}
+        onDeleteNode={(nodeId) => workflow.deleteNodesByIds([nodeId])}
         onStart={() => {
           const firstNodeId = workflow.nodes.find((node) => node.type === "ContentInputNode")?.id;
           if (!firstNodeId) {

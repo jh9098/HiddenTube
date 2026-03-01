@@ -155,7 +155,7 @@ function PreviewPanel({
   onStart,
   hasStarted,
   onUpdateNodeManualResult,
-  onExecuteFromNode,
+  onExecuteFromNode
 }) {
   const orderedNodeIds = useMemo(() => buildExecutionOrder(nodes, edges), [nodes, edges]);
   const nodeMap = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
@@ -236,6 +236,7 @@ function StepPanel({
   onUpdateNodePromptTemplate,
   onUpdateNodeManualResult,
   onExecuteFromNode,
+  onDeleteNode,
 }) {
   const [manualResponse, setManualResponse] = useState(selectedNode?.data?.manualResult || "");
   const [uploadFileName, setUploadFileName] = useState("");
@@ -379,6 +380,13 @@ function StepPanel({
         >
           저장 후 다음 노드 실행
         </button>
+        <button
+          type="button"
+          className="toolbar-btn danger"
+          onClick={() => onDeleteNode(selectedNode.id)}
+        >
+          이 Step 노드 삭제
+        </button>
       </div>
     </div>
   );
@@ -394,6 +402,7 @@ function RightExecutionPanel({
   onUpdateNodePromptTemplate,
   onUpdateNodeManualResult,
   onExecuteFromNode,
+  onDeleteNode,
 }) {
   const [activeTab, setActiveTab] = useState("preview");
   const [hasStarted, setHasStarted] = useState(false);
