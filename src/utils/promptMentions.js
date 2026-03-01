@@ -11,11 +11,14 @@ function toMentionToken(label) {
 }
 
 function getNodeReferenceText(node) {
+  const manualResult = String(node?.data?.manualResult || "").trim();
+  if (manualResult) return manualResult;
+
   const output = node?.data?.output;
   const outputText = formatReferenceTextFromOutput(output);
   if (outputText) return outputText;
 
-  return node?.data?.manualResult || "";
+  return "";
 }
 
 export function formatReferenceTextFromOutput(output) {
@@ -27,8 +30,14 @@ export function formatReferenceTextFromOutput(output) {
 
   const contentInput = output.content_input;
   if (contentInput && typeof contentInput === "object") {
+    if (typeof contentInput.text === "string" && contentInput.text.trim()) {
+      return contentInput.text;
+    }
     if (typeof contentInput.original_text === "string" && contentInput.original_text.trim()) {
       return contentInput.original_text;
+    }
+    if (typeof contentInput.originalText === "string" && contentInput.originalText.trim()) {
+      return contentInput.originalText;
     }
     if (typeof contentInput.topic === "string" && contentInput.topic.trim()) {
       return contentInput.topic;

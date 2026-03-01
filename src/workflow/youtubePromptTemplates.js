@@ -84,7 +84,9 @@ export function buildPromptByNodeType(nodeType, config, resolvedInput) {
       id: ref.nodeId,
       label: ref.label,
       mentionToken: ref.label,
-      text: formatReferenceTextFromOutput(upstreamData?.[ref.nodeId]),
+      text: typeof ref.manualResult === "string" && ref.manualResult.trim()
+        ? ref.manualResult.trim()
+        : formatReferenceTextFromOutput(upstreamData?.[ref.nodeId]),
     }))
   );
   const summary = refs.length
