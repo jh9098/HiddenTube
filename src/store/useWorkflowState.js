@@ -302,11 +302,20 @@ export function useWorkflowState() {
   );
 
   const executeFromNode = useCallback(
-    (nodeId) => {
+    (nodeId, manualOverrides) => {
       if (!nodeId) return;
-      setNodes((currentNodes) => executeNodes(currentNodes, edges, { startNodeId: nodeId, runMode: "downstream" }));
+      const baseNodes = manualOverrides && typeof manualOverrides === "object"
+        ? nodes.map((node) => {
+            const override = manualOverrides[node.id];
+            return override !== undefined
+              ? { ...node, data: { ...node.data, manualResult: override } }
+              : node;
+          })
+        : nodes;
+      const nextNodes = executeNodes(baseNodes, edges, { startNodeId: nodeId, runMode: "downstream" });
+      commitPresent({ nodes: nextNodes, edges });
     },
-    [edges, setNodes]
+    [commitPresent, edges, nodes]
   );
 
   const updateSelectedNodeManualResult = useCallback(

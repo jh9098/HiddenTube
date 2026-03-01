@@ -76,6 +76,7 @@ export function executeNodes(nodes, edges, { startNodeId = null, runMode = "down
         nodeId: ref.nodeId,
         label: ref.label,
         type: ref.type,
+        manualResult: ref.manualResult,
       })),
       _upstreamData: Object.fromEntries(refs.map((ref) => [ref.nodeId, ref.output])),
     };

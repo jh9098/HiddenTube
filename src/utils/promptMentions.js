@@ -42,6 +42,7 @@ export function formatReferenceTextFromOutput(output) {
     if (typeof contentInput.topic === "string" && contentInput.topic.trim()) {
       return contentInput.topic;
     }
+    return "";
   }
 
   return JSON.stringify(output, null, 2);

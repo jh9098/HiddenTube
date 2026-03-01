@@ -78,7 +78,7 @@ function PreviewWorkspace({ displayNodes, nodes, edges, onUpdateNodeManualResult
     <section className="preview-workspace">
       {displayNodes.map((node) => {
         const isContentInputNode = node.type === "ContentInputNode";
-        const promptText = resolvePreviewPrompt(node, nodes, edges);
+        const promptText = resolvePreviewPrompt(node, nodes, edges, manualResponses);
         const manualResponse = manualResponses[node.id] ?? "";
 
         return (
@@ -91,6 +91,10 @@ function PreviewWorkspace({ displayNodes, nodes, edges, onUpdateNodeManualResult
                   프롬프트 복사
                 </button>
               </div>
+            )}
+
+            {!isContentInputNode && promptText && (
+              <pre className="readonly-box">{promptText}</pre>
             )}
 
             <div className="field">
@@ -111,8 +115,7 @@ function PreviewWorkspace({ displayNodes, nodes, edges, onUpdateNodeManualResult
                 type="button"
                 className="toolbar-btn"
                 onClick={() => {
-                  onUpdateNodeManualResult(node.id, manualResponse);
-                  onExecuteFromNode(node.id);
+                  onExecuteFromNode(node.id, { [node.id]: manualResponse });
                 }}
               >
                 저장 후 다음 노드로 전달
