@@ -12,11 +12,30 @@ function toMentionToken(label) {
 
 function getNodeReferenceText(node) {
   const output = node?.data?.output;
-  if (output && typeof output === "object" && Object.keys(output).length > 0) {
-    return JSON.stringify(output, null, 2);
-  }
+  const outputText = formatReferenceTextFromOutput(output);
+  if (outputText) return outputText;
 
   return node?.data?.manualResult || "";
+}
+
+export function formatReferenceTextFromOutput(output) {
+  if (!output || typeof output !== "object" || Object.keys(output).length === 0) return "";
+
+  if (typeof output.raw_text === "string" && output.raw_text.trim()) {
+    return output.raw_text;
+  }
+
+  const contentInput = output.content_input;
+  if (contentInput && typeof contentInput === "object") {
+    if (typeof contentInput.original_text === "string" && contentInput.original_text.trim()) {
+      return contentInput.original_text;
+    }
+    if (typeof contentInput.topic === "string" && contentInput.topic.trim()) {
+      return contentInput.topic;
+    }
+  }
+
+  return JSON.stringify(output, null, 2);
 }
 
 export function getIncomingReferenceNodes(targetNodeId, nodes, edges) {

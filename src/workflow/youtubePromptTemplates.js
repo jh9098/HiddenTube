@@ -1,3 +1,4 @@
+import { resolvePromptTemplateWithMentions, formatReferenceTextFromOutput } from "../utils/promptMentions";
 function pretty(value) {
   try {
     return JSON.stringify(value, null, 2);
@@ -74,8 +75,18 @@ export function getDefaultPromptTemplate(nodeType) {
 }
 
 export function buildPromptByNodeType(nodeType, config, resolvedInput) {
-  const template = config?.promptTemplate || getDefaultPromptTemplate(nodeType);
+  const rawTemplate = config?.promptTemplate || getDefaultPromptTemplate(nodeType);
   const refs = Array.isArray(resolvedInput?._upstreamRefs) ? resolvedInput._upstreamRefs : [];
+  const upstreamData = resolvedInput?._upstreamData || {};
+  const template = resolvePromptTemplateWithMentions(
+    rawTemplate,
+    refs.map((ref) => ({
+      id: ref.nodeId,
+      label: ref.label,
+      mentionToken: ref.label,
+      text: formatReferenceTextFromOutput(upstreamData?.[ref.nodeId]),
+    }))
+  );
   const summary = refs.length
     ? refs.map((ref) => `- ${ref.label} (${ref.type}, id=${ref.nodeId})`).join("\n")
     : "- 연결된 상위 노드가 없습니다.";
