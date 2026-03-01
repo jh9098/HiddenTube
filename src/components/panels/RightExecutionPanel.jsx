@@ -57,58 +57,86 @@ function gatherUpstreamText(node, allNodes) {
     .join("\n\n");
 }
 
-function PreviewWorkspace({ selectedNode, onUpdateNodeManualResult, onExecuteFromNode }) {
-  const [manualResponse, setManualResponse] = useState(selectedNode?.data?.manualResult || "");
+function collectConnectedNodeIds(startNodeId, edges) {
+  if (!startNodeId) return new Set();
 
-  useEffect(() => {
-    setManualResponse(selectedNode?.data?.manualResult || "");
-  }, [selectedNode?.id, selectedNode?.data?.manualResult]);
+  const visited = new Set([startNodeId]);
+  const queue = [startNodeId];
 
-  if (!selectedNode) {
-    return <p className="panel-help">왼쪽 단계 목록에서 노드를 선택해 작업을 진행해 주세요.</p>;
+  while (queue.length) {
+    const currentNodeId = queue.shift();
+    edges.forEach((edge) => {
+      if (edge.source !== currentNodeId || visited.has(edge.target)) return;
+      visited.add(edge.target);
+      queue.push(edge.target);
+    });
   }
 
-  const isContentInputNode = selectedNode.type === "ContentInputNode";
-  const promptText = selectedNode.data?.generatedPrompt || selectedNode.data?.config?.promptTemplate || "";
+  return visited;
+}
+
+function PreviewWorkspace({ displayNodes, onUpdateNodeManualResult, onExecuteFromNode }) {
+  const [manualResponses, setManualResponses] = useState({});
+
+  useEffect(() => {
+    const next = {};
+    displayNodes.forEach((node) => {
+      next[node.id] = node.data?.manualResult || "";
+    });
+    setManualResponses(next);
+  }, [displayNodes]);
+
+  if (!displayNodes.length) {
+    return <p className="panel-help">연결된 실행 노드가 없습니다. 노드 연결 상태를 확인해 주세요.</p>;
+  }
 
   return (
     <section className="preview-workspace">
-      <h4>{selectedNode.data?.label}</h4>
+      {displayNodes.map((node) => {
+        const isContentInputNode = node.type === "ContentInputNode";
+        const promptText = node.data?.generatedPrompt || node.data?.config?.promptTemplate || "";
+        const manualResponse = manualResponses[node.id] ?? "";
 
-      {!isContentInputNode && (
-        <>
-          <p className="console-subtitle">프롬프트</p>
-          <pre className="readonly-box">{promptText || "아직 프롬프트가 준비되지 않았습니다."}</pre>
-          <div className="step-action-row">
-            <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptText)}>
-              프롬프트 복사
-            </button>
-          </div>
-        </>
-      )}
+        return (
+          <article key={node.id} className="console-item">
+            <h4>{node.data?.label}</h4>
 
-      <div className="field">
-        <label>{isContentInputNode ? "내용 입력" : "답변 입력"}</label>
-        <textarea
-          className="config-editor"
-          placeholder={isContentInputNode ? "여기에 초안 내용을 입력하세요." : "AI 답변을 붙여넣어 주세요."}
-          value={manualResponse}
-          onChange={(event) => setManualResponse(event.target.value)}
-        />
-      </div>
+            {!isContentInputNode && (
+              <div className="step-action-row">
+                <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptText)}>
+                  프롬프트 복사
+                </button>
+              </div>
+            )}
 
-      <div className="step-action-row">
-        <button
-          type="button"
-          className="toolbar-btn"
-          onClick={() => {
-            onUpdateNodeManualResult(selectedNode.id, manualResponse);
-            onExecuteFromNode(selectedNode.id);
-          }}
-        >
-          저장 후 다음 노드로 전달
-        </button>
-      </div>
+            <div className="field">
+              <label>{isContentInputNode ? "내용 입력" : "답변 입력"}</label>
+              <textarea
+                className="config-editor"
+                placeholder={isContentInputNode ? "여기에 초안 내용을 입력하세요." : "AI 답변을 붙여넣어 주세요."}
+                value={manualResponse}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setManualResponses((current) => ({ ...current, [node.id]: value }));
+                }}
+              />
+            </div>
+
+            <div className="step-action-row">
+              <button
+                type="button"
+                className="toolbar-btn"
+                onClick={() => {
+                  onUpdateNodeManualResult(node.id, manualResponse);
+                  onExecuteFromNode(node.id);
+                }}
+              >
+                저장 후 다음 노드로 전달
+              </button>
+            </div>
+          </article>
+        );
+      })}
     </section>
   );
 }
@@ -118,15 +146,28 @@ function PreviewPanel({
   edges,
   projectTitle,
   onStart,
-  onSelectNode,
   hasStarted,
-  selectedNode,
   onUpdateNodeManualResult,
   onExecuteFromNode,
 }) {
   const orderedNodeIds = useMemo(() => buildExecutionOrder(nodes, edges), [nodes, edges]);
   const nodeMap = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const orderedNodes = orderedNodeIds.map((nodeId) => nodeMap.get(nodeId)).filter(Boolean);
+
+  const firstContentInputNode = useMemo(
+    () => orderedNodes.find((node) => node.type === "ContentInputNode"),
+    [orderedNodes]
+  );
+
+  const connectedNodeIds = useMemo(
+    () => collectConnectedNodeIds(firstContentInputNode?.id, edges),
+    [firstContentInputNode?.id, edges]
+  );
+
+  const displayNodes = useMemo(
+    () => orderedNodes.filter((node) => connectedNodeIds.has(node.id)),
+    [orderedNodes, connectedNodeIds]
+  );
 
   return (
     <div className="execution-pane preview-pane">
@@ -138,23 +179,11 @@ function PreviewPanel({
         </button>
       </div>
 
-      <ul className="preview-step-list">
-        {orderedNodes.map((node, index) => {
-          const state = getNodeExecutionState(node);
-          return (
-            <li key={node.id} className={`preview-step-item ${state}`}>
-              <button type="button" onClick={() => onSelectNode(node.id)}>
-                {index + 1}. {node.data?.label}
-              </button>
-              <span>{state}</span>
-            </li>
-          );
-        })}
-      </ul>
+      {!hasStarted && <p className="panel-help">Start를 누르면 내용 입력 단계가 시작됩니다.</p>}
 
       {hasStarted && (
         <PreviewWorkspace
-          selectedNode={selectedNode}
+          displayNodes={displayNodes}
           onUpdateNodeManualResult={onUpdateNodeManualResult}
           onExecuteFromNode={onExecuteFromNode}
         />
@@ -334,9 +363,7 @@ function RightExecutionPanel({
             onStart();
             setHasStarted(true);
           }}
-          onSelectNode={onSelectNode}
           hasStarted={hasStarted}
-          selectedNode={selectedNode}
           onUpdateNodeManualResult={onUpdateNodeManualResult}
           onExecuteFromNode={onExecuteFromNode}
         />
