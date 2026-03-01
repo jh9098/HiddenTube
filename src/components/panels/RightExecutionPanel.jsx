@@ -1,11 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  extractMentionLabels,
-  findMentionContext,
-  getIncomingReferenceNodes,
-  insertMentionToken,
-  resolvePromptTemplateWithMentions,
-} from "../../utils/promptMentions";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
@@ -47,23 +40,6 @@ function buildExecutionOrder(nodes, edges) {
   return order.length === nodes.length ? order : nodes.map((node) => node.id);
 }
 
-function gatherUpstreamText(node, allNodes) {
-  const summaries = node?.data?.upstreamNodeSummaries || [];
-  if (!summaries.length) return "";
-
-  return summaries
-    .map((summary) => {
-      const sourceNode = allNodes.find((candidate) => candidate.id === summary.nodeId);
-      if (!sourceNode) return null;
-      const sourceOutput = sourceNode.data?.output;
-      const sourceManual = sourceNode.data?.manualResult;
-      const payload = sourceOutput && Object.keys(sourceOutput).length > 0 ? sourceOutput : sourceManual || "";
-      return `[${summary.label}]\n${typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)}`;
-    })
-    .filter(Boolean)
-    .join("\n\n");
-}
-
 function collectConnectedNodeIds(startNodeId, edges) {
   if (!startNodeId) return new Set();
 
@@ -82,7 +58,7 @@ function collectConnectedNodeIds(startNodeId, edges) {
   return visited;
 }
 
-function PreviewWorkspace({ displayNodes, allNodes, edges, onUpdateNodeManualResult, onExecuteFromNode }) {
+function PreviewWorkspace({ displayNodes, onUpdateNodeManualResult, onExecuteFromNode }) {
   const [manualResponses, setManualResponses] = useState({});
 
   useEffect(() => {
@@ -101,15 +77,7 @@ function PreviewWorkspace({ displayNodes, allNodes, edges, onUpdateNodeManualRes
     <section className="preview-workspace">
       {displayNodes.map((node) => {
         const isContentInputNode = node.type === "ContentInputNode";
-        const promptTemplate = node.data?.config?.promptTemplate || "";
-        const resolvedPromptTemplate = resolvePromptTemplateWithMentions(
-          promptTemplate,
-          getIncomingReferenceNodes(node.id, allNodes, edges)
-        );
-        const hasTemplateVars = /\{\{\w+\}\}/.test(promptTemplate);
-        const promptText = hasTemplateVars
-          ? node.data?.generatedPrompt || resolvedPromptTemplate || promptTemplate
-          : resolvedPromptTemplate || node.data?.generatedPrompt || promptTemplate;
+        const promptText = node.data?.config?.promptTemplate || "";
         const manualResponse = manualResponses[node.id] ?? "";
 
         return (
@@ -199,8 +167,6 @@ function PreviewPanel({
       {hasStarted && (
         <PreviewWorkspace
           displayNodes={displayNodes}
-          allNodes={nodes}
-          edges={edges}
           onUpdateNodeManualResult={onUpdateNodeManualResult}
           onExecuteFromNode={onExecuteFromNode}
         />
@@ -240,50 +206,15 @@ function ConsolePanel({ nodes, edges, onSelectNode }) {
 
 function StepPanel({
   selectedNode,
-  nodes,
-  edges,
   onUpdateNodeLabel,
   onUpdateNodePromptTemplate,
-  onUpdateNodeManualResult,
-  onExecuteFromNode,
   onDeleteNode,
 }) {
-  const [manualResponse, setManualResponse] = useState(selectedNode?.data?.manualResult || "");
-  const [uploadFileName, setUploadFileName] = useState("");
-  const [mentionContext, setMentionContext] = useState(null);
-
-  useEffect(() => {
-    setManualResponse(selectedNode?.data?.manualResult || "");
-    setUploadFileName("");
-    setMentionContext(null);
-  }, [selectedNode?.id, selectedNode?.data?.manualResult]);
-
   if (!selectedNode) {
     return <p className="panel-help">노드를 선택하면 Step 탭이 활성화됩니다.</p>;
   }
 
   const promptTemplate = selectedNode.data?.config?.promptTemplate || "";
-  const upstreamText = gatherUpstreamText(selectedNode, nodes);
-  const isContentInputNode = selectedNode.type === "ContentInputNode";
-  const referenceNodes = useMemo(
-    () => getIncomingReferenceNodes(selectedNode.id, nodes, edges),
-    [selectedNode.id, nodes, edges]
-  );
-  const visibleMentionSuggestions = useMemo(() => {
-    if (!mentionContext) return [];
-
-    const normalizedQuery = mentionContext.query.trim().toLowerCase();
-    return referenceNodes.filter((node) => {
-      if (!normalizedQuery) return true;
-      return node.label.toLowerCase().includes(normalizedQuery) || node.mentionToken.toLowerCase().includes(normalizedQuery);
-    });
-  }, [mentionContext, referenceNodes]);
-
-  const mentionLabels = useMemo(() => extractMentionLabels(promptTemplate), [promptTemplate]);
-  const resolvedPromptTemplate = useMemo(
-    () => resolvePromptTemplateWithMentions(promptTemplate, referenceNodes),
-    [promptTemplate, referenceNodes]
-  );
 
   return (
     <div className="execution-pane">
@@ -292,104 +223,16 @@ function StepPanel({
         <label>노드 제목</label>
         <input value={selectedNode.data?.label || ""} onChange={(event) => onUpdateNodeLabel(selectedNode.id, event.target.value)} />
       </div>
-
-      {!isContentInputNode && (
-        <>
-          <div className="field">
-            <label>명령어(Prompt)</label>
-            <textarea
-              className="config-editor"
-              value={promptTemplate}
-              onChange={(event) => {
-                const nextText = event.target.value;
-                onUpdateNodePromptTemplate(selectedNode.id, nextText);
-                setMentionContext(findMentionContext(nextText, event.target.selectionStart));
-              }}
-              onClick={(event) => {
-                setMentionContext(findMentionContext(promptTemplate, event.target.selectionStart));
-              }}
-              onKeyUp={(event) => {
-                setMentionContext(findMentionContext(promptTemplate, event.currentTarget.selectionStart));
-              }}
-            />
-            {mentionContext && visibleMentionSuggestions.length > 0 && (
-              <div className="mention-suggestion-box">
-                {visibleMentionSuggestions.map((node) => (
-                  <button
-                    key={node.id}
-                    type="button"
-                    className="mention-suggestion-item"
-                    onClick={() => {
-                      const nextText = insertMentionToken(promptTemplate, node.mentionToken, mentionContext);
-                      onUpdateNodePromptTemplate(selectedNode.id, nextText);
-                      setMentionContext(null);
-                    }}
-                  >
-                    🔗 {node.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            {mentionLabels.length > 0 && (
-              <p className="panel-help">참조 노드: {mentionLabels.map((label) => `🔗 ${label}`).join(", ")}</p>
-            )}
-          </div>
-
-          <section className="panel-section">
-            <h4>이전 노드 응답 컨텍스트</h4>
-            <pre className="readonly-box">{upstreamText || "이전 노드 연결이 없습니다."}</pre>
-          </section>
-
-          <div className="step-action-row">
-            <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptTemplate)}>
-              프롬프트 복사
-            </button>
-            <button
-              type="button"
-              className="toolbar-btn"
-              onClick={() => navigator.clipboard.writeText(resolvedPromptTemplate)}
-            >
-              참조 반영 프롬프트 복사
-            </button>
-          </div>
-        </>
-      )}
-
       <div className="field">
-        <label>사용자 응답 입력</label>
+        <label>명령어(Prompt)</label>
         <textarea
           className="config-editor"
-          placeholder={isContentInputNode ? "여기에 내용을 직접 입력해 주세요" : "각 단계에서 받은 답변을 붙여넣어 주세요"}
-          value={manualResponse}
-          onChange={(event) => setManualResponse(event.target.value)}
+          value={promptTemplate}
+          onChange={(event) => onUpdateNodePromptTemplate(selectedNode.id, event.target.value)}
         />
       </div>
 
-      {!isContentInputNode && (
-        <div className="field">
-          <label>업로드가 필요한 경우</label>
-          <input
-            type="file"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              setUploadFileName(file ? file.name : "");
-            }}
-          />
-          {uploadFileName ? <p className="panel-help">선택 파일: {uploadFileName}</p> : null}
-        </div>
-      )}
-
       <div className="step-action-row">
-        <button
-          type="button"
-          className="toolbar-btn"
-          onClick={() => {
-            onUpdateNodeManualResult(selectedNode.id, manualResponse);
-            onExecuteFromNode(selectedNode.id);
-          }}
-        >
-          저장 후 다음 노드 실행
-        </button>
         <button
           type="button"
           className="toolbar-btn danger"
@@ -458,12 +301,9 @@ function RightExecutionPanel({
       {activeTab === "step" && (
         <StepPanel
           selectedNode={selectedNode}
-          nodes={nodes}
-          edges={edges}
           onUpdateNodeLabel={onUpdateNodeLabel}
           onUpdateNodePromptTemplate={onUpdateNodePromptTemplate}
-          onUpdateNodeManualResult={onUpdateNodeManualResult}
-          onExecuteFromNode={onExecuteFromNode}
+          onDeleteNode={onDeleteNode}
         />
       )}
     </aside>
