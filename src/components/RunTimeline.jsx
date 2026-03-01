@@ -8,9 +8,9 @@ function dotClass(status) {
 }
 
 export default function RunTimeline({
-  runs,
+  runs = [],
   currentRunId,
-  nodes,
+  nodes = [],
   onSelectRun,
   onSelectNode,
   onStartRun,
@@ -19,22 +19,24 @@ export default function RunTimeline({
   onClearRuns,
 }) {
   const current = useMemo(() => runs.find((r) => r.id === currentRunId) || null, [runs, currentRunId]);
+  const currentSteps = current?.steps ?? [];
+  const currentEvents = current?.events ?? [];
 
   const stepRows = useMemo(() => {
     if (!current) return [];
-    return current.steps.map((s) => {
+    return currentSteps.map((s) => {
       const node = nodes.find((n) => n.id === s.nodeId);
       const model = node?.data?.config?.modelId || "";
       const label = node?.data?.label || "Node";
       return { ...s, label, model };
     });
-  }, [current, nodes]);
+  }, [current, currentSteps, nodes]);
 
   const progress = useMemo(() => {
-    if (!current || current.steps.length === 0) return 0;
-    const done = current.steps.filter((s) => s.status === "done").length;
-    return Math.round((done / current.steps.length) * 100);
-  }, [current]);
+    if (!current || currentSteps.length === 0) return 0;
+    const done = currentSteps.filter((s) => s.status === "done").length;
+    return Math.round((done / currentSteps.length) * 100);
+  }, [current, currentSteps]);
 
   return (
     <div>
@@ -63,7 +65,7 @@ export default function RunTimeline({
         </select>
 
         <div className="small">
-          {current ? `steps=${current.steps.length} / events=${current.events.length}` : ""}
+          {current ? `steps=${currentSteps.length} / events=${currentEvents.length}` : ""}
         </div>
       </div>
 
@@ -120,8 +122,8 @@ export default function RunTimeline({
       <div className="h2">Events</div>
       <div className="card" style={{ maxHeight: 120, overflow: "auto" }}>
         {current ? (
-          current.events.length ? (
-            current.events.map((ev) => (
+          currentEvents.length ? (
+            currentEvents.map((ev) => (
               <div className="logLine" key={ev.id}>
                 [{ev.time}] {ev.text}
               </div>
