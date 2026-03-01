@@ -187,8 +187,8 @@ function WorkflowEditorBody() {
           workflow.updateNodeManualResult(nodeId, manualResult);
           setMessage("사용자 응답을 저장했습니다.");
         }}
-        onExecuteFromNode={(nodeId) => {
-          workflow.executeFromNode(nodeId);
+        onExecuteFromNode={(nodeId, manualOverrides) => {
+          workflow.executeFromNode(nodeId, manualOverrides);
           setMessage("선택한 단계부터 하위 노드를 실행했습니다.");
         }}
       />
