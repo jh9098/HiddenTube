@@ -82,7 +82,7 @@ function collectConnectedNodeIds(startNodeId, edges) {
   return visited;
 }
 
-function PreviewWorkspace({ displayNodes, onUpdateNodeManualResult, onExecuteFromNode }) {
+function PreviewWorkspace({ displayNodes, allNodes, edges, onUpdateNodeManualResult, onExecuteFromNode }) {
   const [manualResponses, setManualResponses] = useState({});
 
   useEffect(() => {
@@ -101,7 +101,15 @@ function PreviewWorkspace({ displayNodes, onUpdateNodeManualResult, onExecuteFro
     <section className="preview-workspace">
       {displayNodes.map((node) => {
         const isContentInputNode = node.type === "ContentInputNode";
-        const promptText = node.data?.generatedPrompt || node.data?.config?.promptTemplate || "";
+        const promptTemplate = node.data?.config?.promptTemplate || "";
+        const resolvedPromptTemplate = resolvePromptTemplateWithMentions(
+          promptTemplate,
+          getIncomingReferenceNodes(node.id, allNodes, edges)
+        );
+        const hasTemplateVars = /\{\{\w+\}\}/.test(promptTemplate);
+        const promptText = hasTemplateVars
+          ? node.data?.generatedPrompt || resolvedPromptTemplate || promptTemplate
+          : resolvedPromptTemplate || node.data?.generatedPrompt || promptTemplate;
         const manualResponse = manualResponses[node.id] ?? "";
 
         return (
@@ -191,6 +199,8 @@ function PreviewPanel({
       {hasStarted && (
         <PreviewWorkspace
           displayNodes={displayNodes}
+          allNodes={nodes}
+          edges={edges}
           onUpdateNodeManualResult={onUpdateNodeManualResult}
           onExecuteFromNode={onExecuteFromNode}
         />
