@@ -8,6 +8,10 @@ function TopToolbar({
   onExport,
   onImport,
   onExecuteAll,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   message,
 }) {
   const fileInputRef = useRef(null);
@@ -25,6 +29,12 @@ function TopToolbar({
       <div className="toolbar-brand">HiddenTube · Workflow Builder</div>
       <button type="button" className="toolbar-btn" onClick={onNew}>
         새 워크플로우
+      </button>
+      <button type="button" className="toolbar-btn" onClick={onUndo} disabled={!canUndo}>
+        Undo
+      </button>
+      <button type="button" className="toolbar-btn" onClick={onRedo} disabled={!canRedo}>
+        Redo
       </button>
       <button type="button" className="toolbar-btn" onClick={onSave}>
         저장

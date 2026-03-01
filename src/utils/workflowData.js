@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import { getDefaultPromptTemplate } from "../workflow/youtubePromptTemplates";
 
 export const WORKFLOW_STORAGE_KEY = "hiddentube_workflow_v1";
+export const WORKFLOW_HISTORY_STORAGE_KEY = "hiddentube_workflow_history_v1";
 
 export const NODE_STATUSES = ["idle", "ready", "running", "done", "error"];
 
