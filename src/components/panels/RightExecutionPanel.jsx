@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { resolvePreviewPrompt } from "./previewPromptResolver";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
@@ -58,7 +59,7 @@ function collectConnectedNodeIds(startNodeId, edges) {
   return visited;
 }
 
-function PreviewWorkspace({ displayNodes, onUpdateNodeManualResult, onExecuteFromNode }) {
+function PreviewWorkspace({ displayNodes, nodes, edges, onUpdateNodeManualResult, onExecuteFromNode }) {
   const [manualResponses, setManualResponses] = useState({});
 
   useEffect(() => {
@@ -77,7 +78,7 @@ function PreviewWorkspace({ displayNodes, onUpdateNodeManualResult, onExecuteFro
     <section className="preview-workspace">
       {displayNodes.map((node) => {
         const isContentInputNode = node.type === "ContentInputNode";
-        const promptText = node.data?.config?.promptTemplate || "";
+        const promptText = resolvePreviewPrompt(node, nodes, edges);
         const manualResponse = manualResponses[node.id] ?? "";
 
         return (
@@ -167,6 +168,8 @@ function PreviewPanel({
       {hasStarted && (
         <PreviewWorkspace
           displayNodes={displayNodes}
+          nodes={nodes}
+          edges={edges}
           onUpdateNodeManualResult={onUpdateNodeManualResult}
           onExecuteFromNode={onExecuteFromNode}
         />
@@ -285,8 +288,6 @@ function RightExecutionPanel({
 
       {activeTab === "preview" && (
         <PreviewPanel
-          nodes={nodes}
-          edges={edges}
           projectTitle={projectTitle}
           onStart={() => {
             onStart();
