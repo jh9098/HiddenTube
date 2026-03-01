@@ -95,6 +95,7 @@ def validate_render_payload(render_json: dict[str, Any], asset_map: dict[str, An
 
     image_map = asset_map.get("images", {})
     audio_map = asset_map.get("audio", {})
+    subtitle_map = asset_map.get("subtitles", {})
     for scene_id in scene_ids:
         if scene_id not in image_map:
             missing_assets.append({"scene_id": scene_id, "asset_type": "image"})
@@ -102,5 +103,7 @@ def validate_render_payload(render_json: dict[str, Any], asset_map: dict[str, An
         if scene_id not in audio_map:
             missing_assets.append({"scene_id": scene_id, "asset_type": "audio"})
             issues.append(_issue("missing_audio", "error", "장면 오디오가 없습니다.", scene_id))
+        if scene_id not in subtitle_map:
+            issues.append(_issue("missing_subtitle", "warning", "장면 자막 파일 매핑이 없습니다.", scene_id))
 
     return issues, missing_assets

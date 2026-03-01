@@ -37,7 +37,7 @@ def _write_index(index: dict[str, str]) -> None:
     JOB_INDEX_PATH.write_text(json.dumps(index, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def create_render_job(project_id: str) -> RenderJobResponse:
+def create_render_job(project_id: str, preset: str = "9:16") -> RenderJobResponse:
     job_id = f"job_{uuid4().hex[:10]}"
     now = datetime.now(UTC)
     job = RenderJobResponse(
@@ -51,6 +51,7 @@ def create_render_job(project_id: str) -> RenderJobResponse:
         thumbnail_path=None,
         error_message=None,
         log_path=None,
+        preset=preset,
     )
     write_render_job(job)
     index = _read_index()

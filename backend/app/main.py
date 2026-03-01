@@ -2,7 +2,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +13,7 @@ from .render_job_store import create_render_job, read_render_job_by_id
 from .schemas import (
     ProjectCreateRequest,
     ProjectUpdateRequest,
+    RenderJobCreateRequest,
     RenderJobResponse,
     UploadResponse,
     ValidateResponse,
@@ -129,6 +130,11 @@ def upload_audio(project_id: str, file: UploadFile = File(...), scene_id: str | 
     return _save_and_map(project_id, file, "audio", "audio", (".mp3", ".wav"), scene_id)
 
 
+@app.post("/api/projects/{project_id}/upload/subtitle")
+def upload_subtitle(project_id: str, file: UploadFile = File(...), scene_id: str | None = Form(default=None)):
+    return _save_and_map(project_id, file, "subtitles", "subtitles", (".srt", ".txt"), scene_id)
+
+
 @app.post("/api/projects/{project_id}/upload/bgm")
 def upload_bgm(project_id: str, file: UploadFile = File(...)):
     return _save_and_map(project_id, file, "bgm", "bgm", (".mp3", ".wav"), None)
@@ -149,8 +155,8 @@ def update_asset_mapping(project_id: str, payload: dict[str, Any]):
     kind = payload.get("kind")
     scene_id = payload.get("scene_id")
     filename = payload.get("filename")
-    if kind not in ("images", "audio"):
-        raise HTTPException(status_code=400, detail="kind는 images 또는 audio만 허용됩니다.")
+    if kind not in ("images", "audio", "subtitles"):
+        raise HTTPException(status_code=400, detail="kind는 images/audio/subtitles만 허용됩니다.")
     if not scene_id or not filename:
         raise HTTPException(status_code=400, detail="scene_id와 filename이 필요합니다.")
 
@@ -172,13 +178,13 @@ def validate_render(project_id: str):
 
 
 @app.post("/api/projects/{project_id}/render", response_model=RenderJobResponse)
-def create_render(project_id: str):
+def create_render(project_id: str, payload: RenderJobCreateRequest = Body(default=RenderJobCreateRequest())):
     try:
         project = read_project(project_id)
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail="Project not found") from error
 
-    job = create_render_job(project_id)
+    job = create_render_job(project_id, payload.preset or "9:16")
 
     def _worker() -> None:
         try:

@@ -48,6 +48,10 @@ class ValidateResponse(BaseModel):
     missing_assets: list[dict[str, str]]
 
 
+class RenderJobCreateRequest(BaseModel):
+    preset: str | None = "9:16"
+
+
 class RenderJobResponse(BaseModel):
     job_id: str
     project_id: str
@@ -59,3 +63,4 @@ class RenderJobResponse(BaseModel):
     thumbnail_path: str | None = None
     error_message: str | None = None
     log_path: str | None = None
+    preset: str | None = "9:16"
