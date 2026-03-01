@@ -318,7 +318,7 @@ function RightExecutionPanel({
           onMessage={onMessage}
         />
       )}
-      {activeTab === "production" && <ProductionWorkspace />}
+      {activeTab === "production" && <ProductionWorkspace nodes={nodes} edges={edges} onMessage={onMessage} />}
       {activeTab === "console" && <ConsolePanel nodes={nodes} edges={edges} onSelectNode={onSelectNode} />}
       {activeTab === "step" && (
         <StepPanel

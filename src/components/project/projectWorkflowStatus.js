@@ -7,7 +7,7 @@ const PROMPT_NODE_ORDER = [
   "RenderJsonNode",
 ];
 
-function parseRenderJsonFromNodes(nodes) {
+export function parseRenderJsonFromNodes(nodes) {
   const renderNode = nodes.find((node) => node.type === "RenderJsonNode");
   if (!renderNode) return {};
 

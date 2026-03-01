@@ -13,8 +13,12 @@ async function request(path, options = {}) {
   return response.json();
 }
 
-export function createRenderJob(projectId) {
-  return request(`/api/projects/${projectId}/render`, { method: "POST" });
+export function createRenderJob(projectId, payload = {}) {
+  return request(`/api/projects/${projectId}/render`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getRenderJob(jobId) {

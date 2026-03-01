@@ -8,7 +8,7 @@ from uuid import uuid4
 from .schemas import ProjectCreateRequest, ProjectMeta
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "projects"
-ASSET_TYPES = ("images", "audio", "bgm", "sfx", "renders", "meta")
+ASSET_TYPES = ("images", "audio", "subtitles", "bgm", "sfx", "renders", "meta")
 
 
 def ensure_project_dirs(project_id: str) -> Path:
@@ -68,7 +68,7 @@ def update_project(project_id: str, updates: dict[str, Any]) -> ProjectMeta:
 
 
 def default_asset_map() -> dict[str, Any]:
-    return {"images": {}, "audio": {}, "bgm": [], "sfx": []}
+    return {"images": {}, "audio": {}, "subtitles": {}, "bgm": [], "sfx": []}
 
 
 def read_asset_map(project_id: str) -> dict[str, Any]:
@@ -99,5 +99,5 @@ def list_assets(project_id: str) -> dict[str, list[str]]:
     base = ensure_project_dirs(project_id)
     return {
         folder: sorted([path.name for path in (base / folder).glob("*") if path.is_file()])
-        for folder in ["images", "audio", "bgm", "sfx", "renders"]
+        for folder in ["images", "audio", "subtitles", "bgm", "sfx", "renders"]
     }
