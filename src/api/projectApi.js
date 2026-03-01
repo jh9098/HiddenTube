@@ -1,7 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+import { buildApiUrl } from "./apiBaseUrl";
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  const response = await fetch(buildApiUrl(path), options);
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `요청 실패: ${response.status}`);
@@ -56,4 +56,16 @@ export function uploadAsset(projectId, type, file, sceneId = "") {
     method: "POST",
     body: formData,
   });
+}
+
+export async function uploadAssets(projectId, type, files, sceneId = "") {
+  const uploadTargets = Array.from(files ?? []).filter(Boolean);
+  const results = [];
+
+  for (const file of uploadTargets) {
+    const uploaded = await uploadAsset(projectId, type, file, sceneId);
+    results.push(uploaded);
+  }
+
+  return results;
 }
