@@ -21,6 +21,17 @@ import {
 
 const AUTO_SAVE_DELAY_MS = 500;
 
+function normalizePresent(present) {
+  const safePresent = present && typeof present === "object" ? present : {};
+  const safeNodes = Array.isArray(safePresent.nodes) ? safePresent.nodes : [];
+  const safeEdges = Array.isArray(safePresent.edges) ? safePresent.edges : [];
+
+  return {
+    nodes: safeNodes,
+    edges: safeEdges,
+  };
+}
+
 function sanitizeSelectionIds(ids) {
   return [...new Set((ids || []).filter(Boolean))];
 }
@@ -52,8 +63,9 @@ export function useWorkflowState() {
   const [selectedNodeIds, setSelectedNodeIds] = useState([]);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState([]);
 
-  const nodes = history.present.nodes;
-  const edges = history.present.edges;
+  const present = normalizePresent(history?.present);
+  const nodes = present.nodes;
+  const edges = present.edges;
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -70,17 +82,18 @@ export function useWorkflowState() {
 
   const commitPresent = useCallback((nextPresent, options = {}) => {
     const { recordHistory = true } = options;
+    const normalizedNextPresent = normalizePresent(nextPresent);
 
     setHistory((currentHistory) => {
-      if (currentHistory.present === nextPresent) {
+      if (currentHistory.present === normalizedNextPresent) {
         return currentHistory;
       }
 
       if (recordHistory) {
-        return pushHistorySnapshot(currentHistory, nextPresent);
+        return pushHistorySnapshot(currentHistory, normalizedNextPresent);
       }
 
-      return replacePresent(currentHistory, nextPresent);
+      return replacePresent(currentHistory, normalizedNextPresent);
     });
   }, []);
 
