@@ -581,3 +581,21 @@ body,
   transform: scale(1.12);
   background: #bfdbfe;
 }
+
+.production-pane {
+  gap: 0.85rem;
+}
+
+.production-step-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.production-next-actions ol {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.production-next-actions li {
+  margin-bottom: 0.35rem;
+}
