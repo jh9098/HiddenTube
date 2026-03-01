@@ -288,6 +288,8 @@ function RightExecutionPanel({
 
       {activeTab === "preview" && (
         <PreviewPanel
+          nodes={nodes}
+          edges={edges}
           projectTitle={projectTitle}
           onStart={() => {
             onStart();

@@ -180,7 +180,7 @@ function ProjectAssetsPanel({ nodes, edges, onMessage, onLoadWorkflow }) {
       {validation && (
         <div className="validation-panel">
           <p className={validation.valid ? "ok-text" : "error-text"}>{validation.valid ? "검증 통과" : "오류 있음"}</p>
-          {validation.issues.map((issue, index) => (
+          {(validation.issues ?? []).map((issue, index) => (
             <p key={`${issue.code}-${index}`} className={issue.level === "error" ? "error-text" : "warn-text"}>
               [{issue.level}] {issue.scene_id ? `${issue.scene_id}: ` : ""}{issue.message}
             </p>
