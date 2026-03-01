@@ -82,7 +82,7 @@ function collectConnectedNodeIds(startNodeId, edges) {
   return visited;
 }
 
-function PreviewWorkspace({ displayNodes, onUpdateNodeManualResult, onExecuteFromNode }) {
+function PreviewWorkspace({ displayNodes, nodes, edges, onUpdateNodeManualResult, onExecuteFromNode }) {
   const [manualResponses, setManualResponses] = useState({});
 
   useEffect(() => {
@@ -101,7 +101,9 @@ function PreviewWorkspace({ displayNodes, onUpdateNodeManualResult, onExecuteFro
     <section className="preview-workspace">
       {displayNodes.map((node) => {
         const isContentInputNode = node.type === "ContentInputNode";
-        const promptText = node.data?.generatedPrompt || node.data?.config?.promptTemplate || "";
+        const promptTemplate = node.data?.config?.promptTemplate || "";
+        const referenceNodes = getIncomingReferenceNodes(node.id, nodes, edges);
+        const promptText = resolvePromptTemplateWithMentions(promptTemplate, referenceNodes);
         const manualResponse = manualResponses[node.id] ?? "";
 
         return (
@@ -191,6 +193,8 @@ function PreviewPanel({
       {hasStarted && (
         <PreviewWorkspace
           displayNodes={displayNodes}
+          nodes={nodes}
+          edges={edges}
           onUpdateNodeManualResult={onUpdateNodeManualResult}
           onExecuteFromNode={onExecuteFromNode}
         />
@@ -330,15 +334,12 @@ function StepPanel({
           </section>
 
           <div className="step-action-row">
-            <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptTemplate)}>
-              프롬프트 복사
-            </button>
             <button
               type="button"
               className="toolbar-btn"
               onClick={() => navigator.clipboard.writeText(resolvedPromptTemplate)}
             >
-              참조 반영 프롬프트 복사
+              프롬프트 복사
             </button>
           </div>
         </>
