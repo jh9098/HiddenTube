@@ -1,11 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-
-function buildUrl(path) {
-  return `${API_BASE_URL}${path}`;
-}
+import { buildApiUrl } from "./apiBaseUrl";
 
 async function request(path, options = {}) {
-  const response = await fetch(buildUrl(path), options);
+  const response = await fetch(buildApiUrl(path), options);
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `요청 실패: ${response.status}`);
@@ -26,13 +22,13 @@ export function getRenderJob(jobId) {
 }
 
 export function getRenderResultUrl(jobId) {
-  return buildUrl(`/api/render-jobs/${jobId}/result`);
+  return buildApiUrl(`/api/render-jobs/${jobId}/result`);
 }
 
 export function getRenderThumbnailUrl(jobId) {
-  return buildUrl(`/api/render-jobs/${jobId}/thumbnail`);
+  return buildApiUrl(`/api/render-jobs/${jobId}/thumbnail`);
 }
 
 export function getRenderLogUrl(jobId) {
-  return buildUrl(`/api/render-jobs/${jobId}/log`);
+  return buildApiUrl(`/api/render-jobs/${jobId}/log`);
 }

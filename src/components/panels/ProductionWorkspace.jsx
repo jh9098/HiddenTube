@@ -4,7 +4,7 @@ import {
   getAssets,
   remapAsset,
   updateProject,
-  uploadAsset,
+  uploadAssets,
   validateRender,
 } from "../../api/projectApi";
 import {
@@ -99,14 +99,19 @@ function ProductionWorkspace({ nodes, edges, onMessage }) {
   };
 
   const handleUpload = async (type, event) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (!file) return;
+    if (!files.length) return;
 
     const targetProjectId = await ensureProject();
     const sceneId = manualMap[`${type}_upload_scene`] ?? "";
-    const uploaded = await uploadAsset(targetProjectId, type, file, sceneId);
-    onMessage?.(`${uploaded.filename} 업로드 완료 (${uploaded.mapping_status})`);
+    const uploadedList = await uploadAssets(targetProjectId, type, files, sceneId);
+
+    uploadedList.forEach((uploaded) => {
+      onMessage?.(`${uploaded.filename} 업로드 완료 (${uploaded.mapping_status})`);
+    });
+
+    onMessage?.(`${uploadedList.length}개 ${type} 파일 업로드 완료`);
     await syncAssets(targetProjectId);
   };
 
@@ -174,7 +179,7 @@ function ProductionWorkspace({ nodes, edges, onMessage }) {
             value={manualMap.image_upload_scene || ""}
             onChange={(event) => setManualMap((prev) => ({ ...prev, image_upload_scene: event.target.value }))}
           />
-          <input type="file" accept=".png,.jpg,.jpeg,.webp" onChange={(event) => void handleUpload("image", event)} />
+          <input type="file" accept=".png,.jpg,.jpeg,.webp" multiple onChange={(event) => void handleUpload("image", event)} />
         </div>
         <div className="field">
           <label>자막 업로드 (.srt/.txt)</label>
@@ -183,7 +188,7 @@ function ProductionWorkspace({ nodes, edges, onMessage }) {
             value={manualMap.subtitle_upload_scene || ""}
             onChange={(event) => setManualMap((prev) => ({ ...prev, subtitle_upload_scene: event.target.value }))}
           />
-          <input type="file" accept=".srt,.txt" onChange={(event) => void handleUpload("subtitle", event)} />
+          <input type="file" accept=".srt,.txt" multiple onChange={(event) => void handleUpload("subtitle", event)} />
         </div>
         <div className="field">
           <label>음성 업로드 (mp3/wav)</label>
@@ -192,7 +197,7 @@ function ProductionWorkspace({ nodes, edges, onMessage }) {
             value={manualMap.audio_upload_scene || ""}
             onChange={(event) => setManualMap((prev) => ({ ...prev, audio_upload_scene: event.target.value }))}
           />
-          <input type="file" accept=".mp3,.wav" onChange={(event) => void handleUpload("audio", event)} />
+          <input type="file" accept=".mp3,.wav" multiple onChange={(event) => void handleUpload("audio", event)} />
         </div>
       </article>
 
