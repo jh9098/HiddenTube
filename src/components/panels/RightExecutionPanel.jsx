@@ -1,4 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
+import {
+  extractMentionLabels,
+  findMentionContext,
+  getIncomingReferenceNodes,
+  insertMentionToken,
+  resolvePromptTemplateWithMentions,
+} from "../../utils/promptMentions";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
@@ -224,6 +231,7 @@ function ConsolePanel({ nodes, edges, onSelectNode }) {
 function StepPanel({
   selectedNode,
   nodes,
+  edges,
   onUpdateNodeLabel,
   onUpdateNodePromptTemplate,
   onUpdateNodeManualResult,
@@ -231,10 +239,12 @@ function StepPanel({
 }) {
   const [manualResponse, setManualResponse] = useState(selectedNode?.data?.manualResult || "");
   const [uploadFileName, setUploadFileName] = useState("");
+  const [mentionContext, setMentionContext] = useState(null);
 
   useEffect(() => {
     setManualResponse(selectedNode?.data?.manualResult || "");
     setUploadFileName("");
+    setMentionContext(null);
   }, [selectedNode?.id, selectedNode?.data?.manualResult]);
 
   if (!selectedNode) {
@@ -244,6 +254,25 @@ function StepPanel({
   const promptTemplate = selectedNode.data?.config?.promptTemplate || "";
   const upstreamText = gatherUpstreamText(selectedNode, nodes);
   const isContentInputNode = selectedNode.type === "ContentInputNode";
+  const referenceNodes = useMemo(
+    () => getIncomingReferenceNodes(selectedNode.id, nodes, edges),
+    [selectedNode.id, nodes, edges]
+  );
+  const visibleMentionSuggestions = useMemo(() => {
+    if (!mentionContext) return [];
+
+    const normalizedQuery = mentionContext.query.trim().toLowerCase();
+    return referenceNodes.filter((node) => {
+      if (!normalizedQuery) return true;
+      return node.label.toLowerCase().includes(normalizedQuery) || node.mentionToken.toLowerCase().includes(normalizedQuery);
+    });
+  }, [mentionContext, referenceNodes]);
+
+  const mentionLabels = useMemo(() => extractMentionLabels(promptTemplate), [promptTemplate]);
+  const resolvedPromptTemplate = useMemo(
+    () => resolvePromptTemplateWithMentions(promptTemplate, referenceNodes),
+    [promptTemplate, referenceNodes]
+  );
 
   return (
     <div className="execution-pane">
@@ -260,8 +289,39 @@ function StepPanel({
             <textarea
               className="config-editor"
               value={promptTemplate}
-              onChange={(event) => onUpdateNodePromptTemplate(selectedNode.id, event.target.value)}
+              onChange={(event) => {
+                const nextText = event.target.value;
+                onUpdateNodePromptTemplate(selectedNode.id, nextText);
+                setMentionContext(findMentionContext(nextText, event.target.selectionStart));
+              }}
+              onClick={(event) => {
+                setMentionContext(findMentionContext(promptTemplate, event.target.selectionStart));
+              }}
+              onKeyUp={(event) => {
+                setMentionContext(findMentionContext(promptTemplate, event.currentTarget.selectionStart));
+              }}
             />
+            {mentionContext && visibleMentionSuggestions.length > 0 && (
+              <div className="mention-suggestion-box">
+                {visibleMentionSuggestions.map((node) => (
+                  <button
+                    key={node.id}
+                    type="button"
+                    className="mention-suggestion-item"
+                    onClick={() => {
+                      const nextText = insertMentionToken(promptTemplate, node.mentionToken, mentionContext);
+                      onUpdateNodePromptTemplate(selectedNode.id, nextText);
+                      setMentionContext(null);
+                    }}
+                  >
+                    🔗 {node.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {mentionLabels.length > 0 && (
+              <p className="panel-help">참조 노드: {mentionLabels.map((label) => `🔗 ${label}`).join(", ")}</p>
+            )}
           </div>
 
           <section className="panel-section">
@@ -272,6 +332,13 @@ function StepPanel({
           <div className="step-action-row">
             <button type="button" className="toolbar-btn" onClick={() => navigator.clipboard.writeText(promptTemplate)}>
               프롬프트 복사
+            </button>
+            <button
+              type="button"
+              className="toolbar-btn"
+              onClick={() => navigator.clipboard.writeText(resolvedPromptTemplate)}
+            >
+              참조 반영 프롬프트 복사
             </button>
           </div>
         </>
@@ -373,6 +440,7 @@ function RightExecutionPanel({
         <StepPanel
           selectedNode={selectedNode}
           nodes={nodes}
+          edges={edges}
           onUpdateNodeLabel={onUpdateNodeLabel}
           onUpdateNodePromptTemplate={onUpdateNodePromptTemplate}
           onUpdateNodeManualResult={onUpdateNodeManualResult}
