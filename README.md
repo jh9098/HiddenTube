@@ -46,3 +46,15 @@ VITE_API_BASE_URL=http://localhost:8000
 
 ## 5단계 통합 문서
 - `docs-step5-integration-mvp.md`에 전체 연결 흐름, 렌더 UX, 확장 포인트를 정리했습니다.
+
+
+## 배포(Production) 필수 설정
+
+Netlify 같은 정적 호스팅에서 프론트만 배포하면 `/api/...`는 404가 납니다.
+반드시 프론트 환경변수에 백엔드 주소를 넣어야 합니다.
+
+```bash
+VITE_API_BASE_URL=https://<백엔드-도메인>
+```
+
+예: FastAPI를 Render에 배포했다면 `https://your-api.onrender.com`
