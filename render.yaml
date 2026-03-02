@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: hiddentube-api
+    runtime: python
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: bash build.sh
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CORS_ORIGINS
+        value: https://hiddentube.netlify.app
+      - key: HIDDENTUBE_SUBTITLE_FONT
+        value: /usr/share/fonts/truetype/nanum/NanumGothic.ttf
+      - key: HIDDENTUBE_BGM_VOLUME
+        value: "0.22"
