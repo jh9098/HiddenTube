@@ -71,8 +71,8 @@ app.mount("/static/projects", StaticFiles(directory=DATA_ROOT), name="projects")
 
 
 
-UPLOAD_CHUNK_SIZE = 1024 * 1024
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_AUDIO_UPLOAD_BYTES = 30 * 1024 * 1024
 RENDER_WORKER_SEMAPHORE = Semaphore(1)
 
 # ── 헬스체크 ───────────────────────────────────────────────────────────
@@ -154,6 +154,7 @@ def _save_and_map(
     mapping_key: str,
     allowed_suffixes: tuple[str, ...],
     scene_id: str | None,
+    max_upload_bytes: int,
 ) -> UploadResponse:
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in allowed_suffixes:
@@ -161,22 +162,21 @@ def _save_and_map(
             status_code=400,
             detail=f"허용되지 않는 파일 형식: {suffix}. 허용 형식: {', '.join(allowed_suffixes)}",
         )
-    first_chunk = file.file.read(UPLOAD_CHUNK_SIZE)
-    if not first_chunk:
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    if file_size == 0:
         raise HTTPException(status_code=400, detail="빈 파일은 업로드할 수 없습니다.")
+    if file_size > max_upload_bytes:
+        max_mb = max_upload_bytes // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"파일 크기 제한 초과: 최대 {max_mb}MB")
     file.file.seek(0)
 
-    try:
-        saved_name, _ = save_upload_stream(
-            project_id,
-            category,
-            file.filename or f"upload{suffix}",
-            file.file,
-            chunk_size=UPLOAD_CHUNK_SIZE,
-            max_bytes=MAX_UPLOAD_BYTES,
-        )
-    except ValueError as error:
-        raise HTTPException(status_code=413, detail=f"파일 크기 제한 초과: {error}") from error
+    saved_name = save_upload_stream(
+        project_id,
+        category,
+        file.filename or f"upload{suffix}",
+        file.file,
+    )
 
     mapping = read_asset_map(project_id)
     scenes = _scene_ids_for_project(project_id)
@@ -204,25 +204,57 @@ def _save_and_map(
 @app.post("/api/projects/{project_id}/upload/image")
 def upload_image(project_id: str, file: UploadFile = File(...), scene_id: str | None = Form(default=None)):
     _ensure_project(project_id)
-    return _save_and_map(project_id, file, "images", "images", (".png", ".jpg", ".jpeg", ".webp"), scene_id)
+    return _save_and_map(
+        project_id,
+        file,
+        "images",
+        "images",
+        (".png", ".jpg", ".jpeg", ".webp"),
+        scene_id,
+        MAX_IMAGE_UPLOAD_BYTES,
+    )
 
 
 @app.post("/api/projects/{project_id}/upload/audio")
 def upload_audio(project_id: str, file: UploadFile = File(...), scene_id: str | None = Form(default=None)):
     _ensure_project(project_id)
-    return _save_and_map(project_id, file, "audio", "audio", (".mp3", ".wav"), scene_id)
+    return _save_and_map(
+        project_id,
+        file,
+        "audio",
+        "audio",
+        (".mp3", ".wav"),
+        scene_id,
+        MAX_AUDIO_UPLOAD_BYTES,
+    )
 
 
 @app.post("/api/projects/{project_id}/upload/subtitle")
 def upload_subtitle(project_id: str, file: UploadFile = File(...), scene_id: str | None = Form(default=None)):
     _ensure_project(project_id)
-    return _save_and_map(project_id, file, "subtitles", "subtitles", (".srt", ".txt"), scene_id)
+    return _save_and_map(
+        project_id,
+        file,
+        "subtitles",
+        "subtitles",
+        (".srt", ".txt"),
+        scene_id,
+        MAX_IMAGE_UPLOAD_BYTES,
+    )
 
 
 @app.post("/api/projects/{project_id}/upload/bgm")
 def upload_bgm(project_id: str, file: UploadFile = File(...)):
     _ensure_project(project_id)
-    return _save_and_map(project_id, file, "bgm", "bgm", (".mp3", ".wav"), None)
+    return _save_and_map(
+        project_id,
+        file,
+        "bgm",
+        "bgm",
+        (".mp3", ".wav"),
+        None,
+        MAX_AUDIO_UPLOAD_BYTES,
+    )
 
 
 # ── 에셋 ───────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -94,41 +95,31 @@ def write_asset_map(project_id: str, mapping: dict[str, Any]) -> None:
     path.write_text(json.dumps(mapping, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def save_upload(project_id: str, category: str, filename: str, content: bytes) -> str:
-    safe_name = sanitize_filename(filename)
-    target = ensure_project_dirs(project_id) / category / safe_name
-    target.write_bytes(content)
-    return safe_name
-
-
 def save_upload_stream(
     project_id: str,
     category: str,
     filename: str,
-    source_file: Any,
-    chunk_size: int = 1024 * 1024,
-    max_bytes: int | None = None,
-) -> tuple[str, int]:
+    file_obj: Any,
+) -> str:
     safe_name = sanitize_filename(filename)
     target = ensure_project_dirs(project_id) / category / safe_name
-    total_size = 0
 
     try:
-        with target.open("wb") as fh:
-            while True:
-                chunk = source_file.read(chunk_size)
-                if not chunk:
-                    break
-                fh.write(chunk)
-                total_size += len(chunk)
-                if max_bytes is not None and total_size > max_bytes:
-                    raise ValueError(f"최대 {max_bytes} bytes")
+        with target.open("wb") as target_fp:
+            shutil.copyfileobj(file_obj, target_fp, length=1024 * 1024)
     except Exception:
         if target.exists():
             target.unlink()
         raise
 
-    return safe_name, total_size
+    return safe_name
+
+
+def save_upload(project_id: str, category: str, filename: str, content: bytes) -> str:
+    """레거시 호환용 래퍼: bytes 입력을 파일 스트림 방식으로 저장."""
+    from io import BytesIO
+
+    return save_upload_stream(project_id, category, filename, BytesIO(content))
 
 
 def sanitize_filename(filename: str) -> str:
