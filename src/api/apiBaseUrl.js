@@ -2,6 +2,10 @@ function stripTrailingSlash(url) {
   return url.replace(/\/$/, "");
 }
 
+function isAbsoluteHttpUrl(url) {
+  return /^https?:\/\//i.test(url);
+}
+
 function isLocalHost(hostname) {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
@@ -14,9 +18,32 @@ function getConfiguredBaseUrl() {
   return stripTrailingSlash(configuredBaseUrl.trim());
 }
 
+function shouldUseConfiguredBaseUrlInBrowser(configuredBaseUrl) {
+  if (!configuredBaseUrl || typeof window === "undefined") {
+    return false;
+  }
+
+  const { hostname, origin } = window.location;
+  if (isLocalHost(hostname)) {
+    return true;
+  }
+
+  // 프로덕션에서는 Netlify 리다이렉트(/api/*)를 기본값으로 사용합니다.
+  // 환경변수에 Render 절대 URL이 남아 있으면 CORS가 발생하므로 같은 오리진일 때만 허용합니다.
+  if (isAbsoluteHttpUrl(configuredBaseUrl)) {
+    try {
+      return new URL(configuredBaseUrl).origin === origin;
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function resolveApiBaseUrl() {
   const configuredBaseUrl = getConfiguredBaseUrl();
-  if (configuredBaseUrl) {
+  if (configuredBaseUrl && shouldUseConfiguredBaseUrlInBrowser(configuredBaseUrl)) {
     return configuredBaseUrl;
   }
 
