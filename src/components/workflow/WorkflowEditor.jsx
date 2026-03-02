@@ -14,6 +14,7 @@ import { useWorkflowState } from "../../store/useWorkflowState";
 
 function WorkflowEditorBody() {
   const [message, setMessage] = useState("준비 완료");
+  const [projectTitle, setProjectTitle] = useState("Untitled Project");
   const workflow = useWorkflowState();
 
   const nodeTypes = useMemo(
@@ -143,6 +144,8 @@ function WorkflowEditorBody() {
         canUndo={workflow.canUndo}
         canRedo={workflow.canRedo}
         message={message}
+        projectTitle={projectTitle}
+        onProjectTitleChange={setProjectTitle}
       />
       <main className="canvas-area">
         <CanvasNodeToolbar onAddNode={workflow.addNode} />
@@ -165,9 +168,14 @@ function WorkflowEditorBody() {
       <RightExecutionPanel
         nodes={workflow.nodes}
         edges={workflow.edges}
+        projectTitle={projectTitle}
         selectedNode={workflow.selectedNode}
         onSelectNode={workflow.setSelectedNodeId}
         onDeleteNode={(nodeId) => workflow.deleteNodesByIds([nodeId])}
+        onRemoveIncomingConnection={(targetNodeId, sourceNodeId) => {
+          workflow.removeIncomingEdge(targetNodeId, sourceNodeId);
+          setMessage("연결 노드 토큰을 제거해 엣지를 해제했습니다.");
+        }}
         onMessage={(nextMessage) => setMessage(nextMessage)}
         onStart={() => {
           const firstNodeId = workflow.nodes.find((node) => node.type === "ContentInputNode")?.id;
