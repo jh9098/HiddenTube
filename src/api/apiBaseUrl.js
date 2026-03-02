@@ -2,21 +2,36 @@ function stripTrailingSlash(url) {
   return url.replace(/\/$/, "");
 }
 
-export function resolveApiBaseUrl() {
+function isLocalHost(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function getConfiguredBaseUrl() {
   const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL;
-  if (configuredBaseUrl && configuredBaseUrl.trim()) {
-    return stripTrailingSlash(configuredBaseUrl.trim());
+  if (!configuredBaseUrl || !configuredBaseUrl.trim()) {
+    return null;
+  }
+  return stripTrailingSlash(configuredBaseUrl.trim());
+}
+
+export function resolveApiBaseUrl() {
+  const configuredBaseUrl = getConfiguredBaseUrl();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
   }
 
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    const isLocalHost = host === "localhost" || host === "127.0.0.1";
-    if (isLocalHost) {
-      return "http://localhost:8000";
-    }
+  if (typeof window === "undefined") {
+    return "http://localhost:8000";
   }
 
-  return "";
+  const { hostname } = window.location;
+  if (isLocalHost(hostname)) {
+    return "http://localhost:8000";
+  }
+
+  throw new Error(
+    "VITE_API_BASE_URL이 설정되지 않았습니다. 배포 환경에서는 백엔드 주소를 반드시 설정해야 합니다.",
+  );
 }
 
 export function buildApiUrl(path) {
