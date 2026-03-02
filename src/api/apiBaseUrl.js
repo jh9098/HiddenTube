@@ -29,9 +29,9 @@ export function resolveApiBaseUrl() {
     return "http://localhost:8000";
   }
 
-  throw new Error(
-    "VITE_API_BASE_URL이 설정되지 않았습니다. 배포 환경에서는 백엔드 주소를 반드시 설정해야 합니다.",
-  );
+  // 프로덕션: Netlify 프록시를 통해 같은 도메인에서 API 호출 (CORS 불필요)
+  // netlify.toml의 redirect 규칙이 /api/* → Render 백엔드로 전달
+  return "";
 }
 
 export function buildApiUrl(path) {

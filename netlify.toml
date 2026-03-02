@@ -4,3 +4,29 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+# ── Render 백엔드 프록시 (CORS 우회) ──────────────────────
+# Netlify가 같은 도메인에서 API 요청을 Render 백엔드로 전달
+[[redirects]]
+  from = "/api/*"
+  to = "https://hiddentube.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/health"
+  to = "https://hiddentube.onrender.com/health"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/static/projects/*"
+  to = "https://hiddentube.onrender.com/static/projects/:splat"
+  status = 200
+  force = true
+
+# SPA 폴백 (클라이언트 라우팅)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
