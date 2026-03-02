@@ -5,7 +5,7 @@
 
 import os
 from pathlib import Path
-from threading import Thread
+from threading import Semaphore, Thread
 from typing import Any
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -31,7 +31,7 @@ from .storage import (
     list_assets,
     read_asset_map,
     read_project,
-    save_upload,
+    save_upload_stream,
     update_project,
     write_asset_map,
 )
@@ -69,6 +69,11 @@ app.add_middleware(
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
 app.mount("/static/projects", StaticFiles(directory=DATA_ROOT), name="projects")
 
+
+
+UPLOAD_CHUNK_SIZE = 1024 * 1024
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+RENDER_WORKER_SEMAPHORE = Semaphore(1)
 
 # ── 헬스체크 ───────────────────────────────────────────────────────────
 @app.get("/health")
@@ -156,11 +161,23 @@ def _save_and_map(
             status_code=400,
             detail=f"허용되지 않는 파일 형식: {suffix}. 허용 형식: {', '.join(allowed_suffixes)}",
         )
-    content = file.file.read()
-    if len(content) == 0:
+    first_chunk = file.file.read(UPLOAD_CHUNK_SIZE)
+    if not first_chunk:
         raise HTTPException(status_code=400, detail="빈 파일은 업로드할 수 없습니다.")
+    file.file.seek(0)
 
-    saved_name = save_upload(project_id, category, file.filename or f"upload{suffix}", content)
+    try:
+        saved_name, _ = save_upload_stream(
+            project_id,
+            category,
+            file.filename or f"upload{suffix}",
+            file.file,
+            chunk_size=UPLOAD_CHUNK_SIZE,
+            max_bytes=MAX_UPLOAD_BYTES,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=413, detail=f"파일 크기 제한 초과: {error}") from error
+
     mapping = read_asset_map(project_id)
     scenes = _scene_ids_for_project(project_id)
     matched_scene_id, status = choose_scene_id(saved_name, scenes, explicit_scene_id=scene_id)
@@ -253,6 +270,9 @@ def create_render(project_id: str, payload: RenderJobCreateRequest = Body(defaul
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail="Project not found") from error
 
+    if not RENDER_WORKER_SEMAPHORE.acquire(blocking=False):
+        raise HTTPException(status_code=429, detail="현재 렌더 대기열이 가득 참")
+
     job = create_render_job(project_id, payload.preset or "9:16")
 
     def _worker() -> None:
@@ -262,6 +282,8 @@ def create_render(project_id: str, payload: RenderJobCreateRequest = Body(defaul
             fail_render_job(project_id, job.job_id, str(error))
         except Exception as error:  # noqa: BLE001
             fail_render_job(project_id, job.job_id, f"예상하지 못한 오류: {error}")
+        finally:
+            RENDER_WORKER_SEMAPHORE.release()
 
     Thread(target=_worker, daemon=True).start()
     return read_render_job_by_id(job.job_id)

@@ -1,5 +1,6 @@
 import json
 import shlex
+import shutil
 import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -121,14 +122,20 @@ def _subtitle_drawtext_filters(scene: SceneContext, font_path: str) -> str:
     return ",".join(filters)
 
 
-def _run(cmd: str, log_file: Path) -> None:
-    process = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+def _run(cmd: str, log_file: Path, timeout_sec: int = 20 * 60) -> None:
     with log_file.open("a", encoding="utf-8") as fh:
         fh.write(f"\n$ {cmd}\n")
-        fh.write(process.stdout)
-        fh.write(process.stderr)
-    if process.returncode != 0:
-        raise RenderError(f"ffmpeg 명령 실패(returncode={process.returncode})")
+        fh.flush()
+        process = subprocess.Popen(cmd, shell=True, stdout=fh, stderr=fh, text=True)
+        try:
+            return_code = process.wait(timeout=timeout_sec)
+        except subprocess.TimeoutExpired as error:
+            process.kill()
+            process.wait()
+            raise RenderError(f"ffmpeg 타임아웃({timeout_sec}초)") from error
+
+    if return_code != 0:
+        raise RenderError(f"ffmpeg 명령 실패(returncode={return_code})")
 
 
 def _scene_contexts(project_id: str, render_json: dict[str, Any]) -> list[SceneContext]:
@@ -281,7 +288,13 @@ def run_render_job(project_id: str, job_id: str, render_json: dict[str, Any]) ->
         )
         _run(cmd, log_path)
     else:
-        output_path.write_bytes(merged.read_bytes())
+        if merged.resolve() != output_path.resolve():
+            output_path.unlink(missing_ok=True)
+            try:
+                merged.replace(output_path)
+            except OSError:
+                with merged.open("rb") as src, output_path.open("wb") as dst:
+                    shutil.copyfileobj(src, dst, length=1024 * 1024)
 
     cmd_thumb = (
         "ffmpeg -y "
@@ -297,6 +310,9 @@ def run_render_job(project_id: str, job_id: str, render_json: dict[str, Any]) ->
         "scenes": [scene.scene_id for scene in contexts],
     }
     (job_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    for scene_output in scene_outputs:
+        scene_output.unlink(missing_ok=True)
 
     update_render_job(
         project_id,

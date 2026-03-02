@@ -101,6 +101,36 @@ def save_upload(project_id: str, category: str, filename: str, content: bytes) -
     return safe_name
 
 
+def save_upload_stream(
+    project_id: str,
+    category: str,
+    filename: str,
+    source_file: Any,
+    chunk_size: int = 1024 * 1024,
+    max_bytes: int | None = None,
+) -> tuple[str, int]:
+    safe_name = sanitize_filename(filename)
+    target = ensure_project_dirs(project_id) / category / safe_name
+    total_size = 0
+
+    try:
+        with target.open("wb") as fh:
+            while True:
+                chunk = source_file.read(chunk_size)
+                if not chunk:
+                    break
+                fh.write(chunk)
+                total_size += len(chunk)
+                if max_bytes is not None and total_size > max_bytes:
+                    raise ValueError(f"최대 {max_bytes} bytes")
+    except Exception:
+        if target.exists():
+            target.unlink()
+        raise
+
+    return safe_name, total_size
+
+
 def sanitize_filename(filename: str) -> str:
     normalized = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
     return normalized or f"asset_{uuid4().hex[:8]}"

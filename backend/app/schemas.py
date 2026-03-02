@@ -63,4 +63,6 @@ class RenderJobResponse(BaseModel):
     thumbnail_path: str | None = None
     error_message: str | None = None
     log_path: str | None = None
+    queued_at: datetime | None = None
+    position: int | None = None
     preset: str | None = "9:16"
