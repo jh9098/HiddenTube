@@ -8,7 +8,7 @@ import ReactFlow, {
 
 import WorkflowNode from "../nodes/WorkflowNode";
 import TopToolbar from "../panels/TopToolbar";
-import NodeLibraryPanel from "../panels/NodeLibraryPanel";
+import CanvasNodeToolbar from "../panels/CanvasNodeToolbar";
 import RightExecutionPanel from "../panels/RightExecutionPanel";
 import { useWorkflowState } from "../../store/useWorkflowState";
 
@@ -144,8 +144,8 @@ function WorkflowEditorBody() {
         canRedo={workflow.canRedo}
         message={message}
       />
-      <NodeLibraryPanel onAddNode={workflow.addNode} />
       <main className="canvas-area">
+        <CanvasNodeToolbar onAddNode={workflow.addNode} />
         <ReactFlow
           nodes={nodesWithActions}
           edges={workflow.edges}

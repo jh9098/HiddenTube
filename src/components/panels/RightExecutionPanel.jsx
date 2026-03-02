@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { resolvePreviewPrompt } from "./previewPromptResolver";
 import ProductionWorkspace from "./ProductionWorkspace";
+import Button from "../ui/Button";
+import { TabsList, TabsTrigger } from "../ui/Tabs";
+import { Card, CardContent } from "../ui/Card";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
   const hasManualResult = manualResult.trim().length > 0;
-  const hasResolvedInput = Boolean(node?.data?.resolvedInput && Object.keys(node.data.resolvedInput).length > 0);
+  const hasResolvedInput = Boolean(
+    node?.data?.resolvedInput && Object.keys(node.data.resolvedInput).length > 0
+  );
 
   if (node?.type === "ContentInputNode") {
     return hasManualResult ? "done" : "pending";
@@ -103,9 +108,14 @@ function PreviewWorkspace({ displayNodes, nodes, edges, onExecuteFromNode, onMes
 
             {!isContentInputNode && (
               <div className="step-action-row">
-                <button type="button" className="toolbar-btn" onClick={() => handleCopyPrompt(node)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCopyPrompt(node)}
+                >
                   프롬프트 복사
-                </button>
+                </Button>
               </div>
             )}
 
@@ -123,15 +133,16 @@ function PreviewWorkspace({ displayNodes, nodes, edges, onExecuteFromNode, onMes
             </div>
 
             <div className="step-action-row">
-              <button
+              <Button
                 type="button"
-                className="toolbar-btn"
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   onExecuteFromNode(node.id, { [node.id]: manualResponse });
                 }}
               >
                 저장 후 다음 노드로 전달
-              </button>
+              </Button>
             </div>
           </article>
         );
@@ -173,9 +184,9 @@ function PreviewPanel({
       <div className="preview-hero">
         <div className="preview-logo" />
         <h3>{projectTitle}</h3>
-        <button type="button" className="start-btn" onClick={onStart}>
+        <Button type="button" className="start-btn" onClick={onStart}>
           ✦ Start
-        </button>
+        </Button>
       </div>
 
       {!hasStarted && <p className="panel-help">Start를 누르면 내용 입력 단계가 시작됩니다.</p>}
@@ -251,13 +262,13 @@ function StepPanel({
       </div>
 
       <div className="step-action-row">
-        <button
+        <Button
           type="button"
-          className="toolbar-btn danger"
+          variant="destructive"
           onClick={() => onDeleteNode(selectedNode.id)}
         >
           이 Step 노드 삭제
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -284,49 +295,68 @@ function RightExecutionPanel({
 
   return (
     <aside className="side-panel right-execution-panel">
-      <nav className="execution-tabs">
-        <button type="button" className={activeTab === "preview" ? "active" : ""} onClick={() => setActiveTab("preview")}>
+      <TabsList className="execution-tabs">
+        <TabsTrigger active={activeTab === "preview"} onClick={() => setActiveTab("preview")}>
           Preview
-        </button>
-        <button type="button" className={activeTab === "production" ? "active" : ""} onClick={() => setActiveTab("production")}>
+        </TabsTrigger>
+        <TabsTrigger active={activeTab === "production"} onClick={() => setActiveTab("production")}>
           Production
-        </button>
-        <button type="button" className={activeTab === "console" ? "active" : ""} onClick={() => setActiveTab("console")}>
+        </TabsTrigger>
+        <TabsTrigger active={activeTab === "console"} onClick={() => setActiveTab("console")}>
           Console
-        </button>
-        <button
-          type="button"
-          className={activeTab === "step" ? "active" : ""}
+        </TabsTrigger>
+        <TabsTrigger
+          active={activeTab === "step"}
           disabled={!selectedNode}
           onClick={() => setActiveTab("step")}
         >
           Step
-        </button>
-      </nav>
+        </TabsTrigger>
+      </TabsList>
 
       {activeTab === "preview" && (
-        <PreviewPanel
-          nodes={nodes}
-          edges={edges}
-          projectTitle={projectTitle}
-          onStart={() => {
-            onStart();
-            setHasStarted(true);
-          }}
-          hasStarted={hasStarted}
-          onExecuteFromNode={onExecuteFromNode}
-          onMessage={onMessage}
-        />
+        <Card className="execution-card">
+          <CardContent>
+            <PreviewPanel
+              nodes={nodes}
+              edges={edges}
+              projectTitle={projectTitle}
+              onStart={() => {
+                onStart();
+                setHasStarted(true);
+              }}
+              hasStarted={hasStarted}
+              onExecuteFromNode={onExecuteFromNode}
+              onMessage={onMessage}
+            />
+          </CardContent>
+        </Card>
       )}
-      {activeTab === "production" && <ProductionWorkspace nodes={nodes} edges={edges} onMessage={onMessage} />}
-      {activeTab === "console" && <ConsolePanel nodes={nodes} edges={edges} onSelectNode={onSelectNode} />}
+      {activeTab === "production" && (
+        <Card className="execution-card">
+          <CardContent>
+            <ProductionWorkspace nodes={nodes} edges={edges} onMessage={onMessage} />
+          </CardContent>
+        </Card>
+      )}
+      {activeTab === "console" && (
+        <Card className="execution-card">
+          <CardContent>
+            <ConsolePanel nodes={nodes} edges={edges} onSelectNode={onSelectNode} />
+          </CardContent>
+        </Card>
+      )}
       {activeTab === "step" && (
-        <StepPanel
-          selectedNode={selectedNode}
-          onUpdateNodeLabel={onUpdateNodeLabel}
-          onUpdateNodePromptTemplate={onUpdateNodePromptTemplate}
-          onDeleteNode={onDeleteNode}
-        />
+        <Card className="execution-card">
+          <CardContent>
+            <StepPanel
+              selectedNode={selectedNode}
+              onUpdateNodeLabel={onUpdateNodeLabel}
+              onUpdateNodePromptTemplate={onUpdateNodePromptTemplate}
+              onDeleteNode={onDeleteNode}
+            />
+          </CardContent>
+        </Card>
       )}
     </aside>
   );

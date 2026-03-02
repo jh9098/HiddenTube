@@ -8,7 +8,7 @@ function WorkflowNode({ id, data, selected }) {
   };
 
   return (
-    <div className={`workflow-node ${selected ? "selected" : ""}`}>
+    <div className={`workflow-node ui-card ${selected ? "selected" : ""}`}>
       <Handle
         type="target"
         position={Position.Left}
