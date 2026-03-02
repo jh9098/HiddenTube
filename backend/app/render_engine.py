@@ -126,16 +126,22 @@ def _run(cmd: str, log_file: Path, timeout_sec: int = 20 * 60) -> None:
     with log_file.open("a", encoding="utf-8") as fh:
         fh.write(f"\n$ {cmd}\n")
         fh.flush()
-        process = subprocess.Popen(cmd, shell=True, stdout=fh, stderr=fh, text=True)
         try:
-            return_code = process.wait(timeout=timeout_sec)
+            completed = subprocess.run(
+                cmd,
+                shell=True,
+                stdout=fh,
+                stderr=fh,
+                text=True,
+                timeout=timeout_sec,
+                check=False,
+            )
+            return_code = completed.returncode
         except subprocess.TimeoutExpired as error:
-            process.kill()
-            process.wait()
-            raise RenderError(f"ffmpeg 타임아웃({timeout_sec}초)") from error
+            raise RenderError(f"ffmpeg 명령 실패(returncode=-1, cmd={cmd})") from error
 
     if return_code != 0:
-        raise RenderError(f"ffmpeg 명령 실패(returncode={return_code})")
+        raise RenderError(f"ffmpeg 명령 실패(returncode={return_code}, cmd={cmd})")
 
 
 def _scene_contexts(project_id: str, render_json: dict[str, Any]) -> list[SceneContext]:
@@ -220,7 +226,7 @@ def run_render_job(project_id: str, job_id: str, render_json: dict[str, Any]) ->
             vf = f"{vf},{subtitle_filter}"
 
         cmd = (
-            "ffmpeg -y "
+            "ffmpeg -hide_banner -loglevel warning -y "
             f"-loop 1 -framerate {VIDEO_FPS} -t {scene.duration:.3f} -i {_quote(scene.image_path)} "
             f"-i {_quote(scene.audio_path)} "
             f"-vf \"{vf}\" "
@@ -256,7 +262,7 @@ def run_render_job(project_id: str, job_id: str, render_json: dict[str, Any]) ->
 
             filter_complex = ";".join(filter_parts)
             cmd = (
-                f"ffmpeg -y {inputs} -filter_complex \"{filter_complex}\" "
+                f"ffmpeg -hide_banner -loglevel warning -y {inputs} -filter_complex \"{filter_complex}\" "
                 f"-map '{current_v}' -map '{current_a}' "
                 "-c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac "
                 f"{_quote(merged)}"
@@ -266,7 +272,7 @@ def run_render_job(project_id: str, job_id: str, render_json: dict[str, Any]) ->
             concat_list = job_dir / "concat.txt"
             concat_list.write_text("\n".join([f"file '{path}'" for path in scene_outputs]), encoding="utf-8")
             cmd = (
-                "ffmpeg -y -f concat -safe 0 "
+                "ffmpeg -hide_banner -loglevel warning -y -f concat -safe 0 "
                 f"-i {_quote(concat_list)} -c copy {_quote(merged)}"
             )
             _run(cmd, log_path)
@@ -280,7 +286,7 @@ def run_render_job(project_id: str, job_id: str, render_json: dict[str, Any]) ->
         mixed = job_dir / "mixed.mp4"
         bgm_volume = get_default_bgm_volume()
         cmd = (
-            "ffmpeg -y "
+            "ffmpeg -hide_banner -loglevel warning -y "
             f"-i {_quote(merged)} -stream_loop -1 -i {_quote(bgm_path)} "
             f"-filter_complex \"[1:a]volume={bgm_volume}[bgm];[0:a][bgm]amix=inputs=2:duration=first:weights=1 0.35[aout]\" "
             "-map 0:v -map '[aout]' -c:v copy -c:a aac -shortest "
@@ -297,7 +303,7 @@ def run_render_job(project_id: str, job_id: str, render_json: dict[str, Any]) ->
                     shutil.copyfileobj(src, dst, length=1024 * 1024)
 
     cmd_thumb = (
-        "ffmpeg -y "
+        "ffmpeg -hide_banner -loglevel warning -y "
         f"-i {_quote(output_path)} -ss 00:00:01.000 -vframes 1 {_quote(thumb_path)}"
     )
     _run(cmd_thumb, log_path)
