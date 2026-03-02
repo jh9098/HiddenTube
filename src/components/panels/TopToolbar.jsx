@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import Button from "../ui/Button";
 
 function TopToolbar({
   onNew,
@@ -27,37 +28,33 @@ function TopToolbar({
   return (
     <header className="top-toolbar">
       <div className="toolbar-brand">HiddenTube · Workflow Builder</div>
-      <button type="button" className="toolbar-btn" onClick={onNew}>
+      <Button variant="outline" onClick={onNew}>
         새 워크플로우
-      </button>
-      <button type="button" className="toolbar-btn" onClick={onUndo} disabled={!canUndo}>
+      </Button>
+      <Button variant="outline" onClick={onUndo} disabled={!canUndo}>
         Undo
-      </button>
-      <button type="button" className="toolbar-btn" onClick={onRedo} disabled={!canRedo}>
+      </Button>
+      <Button variant="outline" onClick={onRedo} disabled={!canRedo}>
         Redo
-      </button>
-      <button type="button" className="toolbar-btn" onClick={onSave}>
+      </Button>
+      <Button variant="outline" onClick={onSave}>
         저장
-      </button>
-      <button type="button" className="toolbar-btn" onClick={onLoad}>
+      </Button>
+      <Button variant="outline" onClick={onLoad}>
         불러오기
-      </button>
-      <button type="button" className="toolbar-btn" onClick={onLoadTemplate}>
+      </Button>
+      <Button variant="outline" onClick={onLoadTemplate}>
         예시 템플릿
-      </button>
-      <button type="button" className="toolbar-btn" onClick={onExport}>
+      </Button>
+      <Button variant="outline" onClick={onExport}>
         JSON 내보내기
-      </button>
-      <button type="button" className="toolbar-btn" onClick={onExecuteAll}>
+      </Button>
+      <Button onClick={onExecuteAll}>
         전체 프롬프트 실행
-      </button>
-      <button
-        type="button"
-        className="toolbar-btn"
-        onClick={() => fileInputRef.current?.click()}
-      >
+      </Button>
+      <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
         JSON 가져오기
-      </button>
+      </Button>
       <input
         ref={fileInputRef}
         hidden
