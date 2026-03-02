@@ -14,6 +14,8 @@ function TopToolbar({
   canUndo,
   canRedo,
   message,
+  projectTitle,
+  onProjectTitleChange,
 }) {
   const fileInputRef = useRef(null);
 
@@ -28,6 +30,12 @@ function TopToolbar({
   return (
     <header className="top-toolbar">
       <div className="toolbar-brand">HiddenTube · Workflow Builder</div>
+      <input
+        className="toolbar-project-title-input"
+        value={projectTitle}
+        placeholder="프로젝트 제목을 입력하세요"
+        onChange={(event) => onProjectTitleChange(event.target.value)}
+      />
       <Button variant="outline" onClick={onNew}>
         새 워크플로우
       </Button>

@@ -207,6 +207,17 @@ export function useWorkflowState() {
     [commitPresent, edges, nodes, syncSelectionAfterDelete]
   );
 
+
+  const removeIncomingEdge = useCallback(
+    (targetNodeId, sourceNodeId) => {
+      if (!targetNodeId || !sourceNodeId) return;
+      const nextEdges = edges.filter((edge) => !(edge.target === targetNodeId && edge.source === sourceNodeId));
+      if (nextEdges.length === edges.length) return;
+      commitPresent({ nodes, edges: nextEdges });
+      syncSelectionAfterDelete(nodes, nextEdges);
+    },
+    [commitPresent, edges, nodes, syncSelectionAfterDelete]
+  );
   const onConnect = useCallback(
     (connection) => {
       if (!connection?.source || !connection?.target || connection.source === connection.target) {
@@ -450,6 +461,7 @@ export function useWorkflowState() {
     deleteSelectedElements,
     deleteNodesByIds,
     detachIncomingEdges,
+    removeIncomingEdge,
     updateSelectedNodeMeta,
     updateNodeMeta,
     updateSelectedNodeConfigText,

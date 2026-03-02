@@ -162,12 +162,12 @@ function ApiConnectionTest({ apiBaseUrl }) {
 }
 
 // ── 메인 컴포넌트 ──────────────────────────
-export default function ProductionWorkspace({ nodes = [], edges = [] }) {
+export default function ProductionWorkspace({ nodes = [], edges = [], projectTitle = "" }) {
   const [activeTab, setActiveTab] = useState("assets");
   const [projectId, setProjectId] = useState(() => {
     try { return localStorage.getItem("hiddentube_project_id") || ""; } catch { return ""; }
   });
-  const [projectTitle, setProjectTitle] = useState("새 프로젝트");
+  const [projectNameInput, setProjectNameInput] = useState(projectTitle || "Untitled Project");
   const [projectInfo, setProjectInfo] = useState(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -189,6 +189,12 @@ export default function ProductionWorkspace({ nodes = [], edges = [] }) {
     } catch { return "unknown"; }
   })();
 
+
+  useEffect(() => {
+    if (projectTitle && projectTitle.trim()) {
+      setProjectNameInput(projectTitle);
+    }
+  }, [projectTitle]);
   const showMsg = (msg, error = false) => {
     setMessage(msg);
     setIsError(error);
@@ -233,12 +239,12 @@ export default function ProductionWorkspace({ nodes = [], edges = [] }) {
     try {
       const data = await getProject(id);
       setProjectInfo(data);
-      setProjectTitle(data.title || "");
+      setProjectNameInput(data.title || "");
       showMsg(`프로젝트 불러옴: ${id}`);
     } catch (e) {
       setProjectId("");
       try { localStorage.removeItem("hiddentube_project_id"); } catch {}
-      showMsg("저장된 프로젝트를 찾을 수 없습니다. 새 프로젝트를 만드세요.", true);
+      showMsg("저장된 작업 정보를 찾을 수 없습니다. 다시 작업 시작을 눌러주세요.", true);
     }
   }, []);
 
@@ -249,18 +255,18 @@ export default function ProductionWorkspace({ nodes = [], edges = [] }) {
   // 프로젝트 생성
   const handleCreate = async () => {
     setCreating(true);
-    showMsg("프로젝트 생성 중...");
+    showMsg("작업 시작 준비 중...");
     const renderJson = getRenderJson();
-    console.log("[ProductionWorkspace] createProject payload:", { title: projectTitle, render_json: renderJson });
+    console.log("[ProductionWorkspace] createProject payload:", { title: projectNameInput, render_json: renderJson });
     try {
-      const proj = await createProject({ title: projectTitle || "새 프로젝트", render_json: renderJson });
+      const proj = await createProject({ title: projectNameInput || "Untitled Project", render_json: renderJson });
       setProjectId(proj.project_id);
       setProjectInfo(proj);
       try { localStorage.setItem("hiddentube_project_id", proj.project_id); } catch {}
-      showMsg(`✅ 프로젝트 생성 완료: ${proj.project_id}`);
+      showMsg(`✅ 작업 시작 준비 완료: ${proj.project_id}`);
     } catch (err) {
       console.error("[ProductionWorkspace] createProject error:", err);
-      showMsg("❌ 프로젝트 생성 실패: " + err.message, true);
+      showMsg("❌ 작업 시작 준비 실패: " + err.message, true);
     } finally {
       setCreating(false);
     }
@@ -269,7 +275,7 @@ export default function ProductionWorkspace({ nodes = [], edges = [] }) {
   // render_json 저장
   const handleSaveRenderJson = async () => {
     if (!projectId) {
-      showMsg("❌ 먼저 프로젝트를 생성하세요.", true);
+      showMsg("❌ 먼저 작업 시작을 눌러주세요.", true);
       return;
     }
     setSaving(true);
@@ -301,16 +307,18 @@ export default function ProductionWorkspace({ nodes = [], edges = [] }) {
       {/* ── 프로젝트 헤더 ── */}
       <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid #e5e7eb" }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Production 작업 공간</div>
+        <div style={{ fontSize: 12, color: "#4b5563", marginBottom: 8 }}>현재 설정으로 자동화 작업을 시작합니다.</div>
+        <div style={{ fontSize: 12, color: "#4b5563", marginBottom: 8 }}>작업 시작 후 실행 이력이 기록됩니다.</div>
 
         {/* API 연결 테스트 */}
         <ApiConnectionTest apiBaseUrl={apiBaseUrl} />
 
-        {/* 프로젝트명 + 생성 버튼 */}
+        {/* 프로젝트명 + 작업 시작 버튼 */}
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           <input
-            value={projectTitle}
-            onChange={(e) => setProjectTitle(e.target.value)}
-            placeholder="프로젝트 이름"
+            value={projectNameInput}
+            onChange={(e) => setProjectNameInput(e.target.value)}
+            placeholder="프로젝트 제목을 입력하세요"
             style={{ flex: 1, border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 10px", fontSize: 13 }}
           />
           <button
@@ -322,7 +330,7 @@ export default function ProductionWorkspace({ nodes = [], edges = [] }) {
               whiteSpace: "nowrap", opacity: creating ? 0.6 : 1,
             }}
           >
-            {creating ? "생성 중..." : projectId ? "새 프로젝트" : "프로젝트 생성"}
+            {creating ? "시작 준비 중..." : "작업 시작"}
           </button>
         </div>
 
@@ -349,7 +357,7 @@ export default function ProductionWorkspace({ nodes = [], edges = [] }) {
             padding: "7px 0", fontSize: 12, cursor: !projectId ? "not-allowed" : "pointer",
             fontWeight: 600, marginBottom: 6,
           }}
-          title={!projectId ? "프로젝트를 먼저 생성하세요" : hasRenderJson ? "render_json을 서버에 저장합니다" : "render_json이 없어도 저장 가능합니다"}
+          title={!projectId ? "먼저 작업 시작을 눌러주세요" : hasRenderJson ? "render_json을 서버에 저장합니다" : "render_json이 없어도 저장 가능합니다"}
         >
           {saving ? "저장 중..." : `↑ render_json 서버에 저장${!hasRenderJson ? " (현재 비어있음)" : ""}`}
         </button>
