@@ -45,7 +45,18 @@ def create_project(payload: ProjectCreateRequest) -> ProjectMeta:
 
 def write_project(project: ProjectMeta) -> None:
     path = _meta_path(project.project_id)
-    path.write_text(project.model_dump_json(indent=2), encoding="utf-8")
+    serialized = sanitize_json_data(project.model_dump(mode="json"))
+    path.write_text(json.dumps(serialized, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def sanitize_json_data(value: Any) -> Any:
+    if isinstance(value, str):
+        return value.encode("utf-8", errors="replace").decode("utf-8")
+    if isinstance(value, dict):
+        return {key: sanitize_json_data(inner) for key, inner in value.items()}
+    if isinstance(value, list):
+        return [sanitize_json_data(item) for item in value]
+    return value
 
 
 def read_project(project_id: str) -> ProjectMeta:
