@@ -184,7 +184,8 @@ export default function ProductionWorkspace({ nodes = [], edges = [] }) {
       if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
         return "http://localhost:8000";
       }
-      return "(VITE_API_BASE_URL 미설정)";
+      // 프로덕션: Netlify 프록시 사용 (같은 도메인)
+      return window.location.origin;
     } catch { return "unknown"; }
   })();
 
