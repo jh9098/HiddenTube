@@ -51,6 +51,8 @@ def create_render_job(project_id: str, preset: str = "9:16") -> RenderJobRespons
         thumbnail_path=None,
         error_message=None,
         log_path=None,
+        queued_at=now,
+        position=0,
         preset=preset,
     )
     write_render_job(job)
@@ -68,6 +70,7 @@ def write_render_job(job: RenderJobResponse) -> None:
     payload: dict[str, Any] = job.model_dump()
     payload["started_at"] = _serialize_datetime(job.started_at)
     payload["finished_at"] = _serialize_datetime(job.finished_at)
+    payload["queued_at"] = _serialize_datetime(job.queued_at)
     _job_file(job.project_id, job.job_id).write_text(
         json.dumps(payload, indent=2, ensure_ascii=False),
         encoding="utf-8",
@@ -81,6 +84,7 @@ def read_render_job(project_id: str, job_id: str) -> RenderJobResponse:
     data = json.loads(path.read_text(encoding="utf-8"))
     data["started_at"] = _parse_datetime(data.get("started_at"))
     data["finished_at"] = _parse_datetime(data.get("finished_at"))
+    data["queued_at"] = _parse_datetime(data.get("queued_at"))
     return RenderJobResponse.model_validate(data)
 
 
