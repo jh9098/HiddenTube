@@ -5,7 +5,7 @@
 
 import os
 from pathlib import Path
-from threading import Semaphore, Thread
+from threading import Thread
 from typing import Any
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from .mapping import choose_scene_id
 from .render_engine import RenderError, fail_render_job, run_render_job
 from .render_job_store import create_render_job, read_render_job_by_id
+from .render_queue import release_render_slot, try_acquire_render_slot
 from .schemas import (
     ProjectCreateRequest,
     ProjectUpdateRequest,
@@ -73,7 +74,6 @@ app.mount("/static/projects", StaticFiles(directory=DATA_ROOT), name="projects")
 
 MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_AUDIO_UPLOAD_BYTES = 30 * 1024 * 1024
-RENDER_WORKER_SEMAPHORE = Semaphore(1)
 
 # ── 헬스체크 ───────────────────────────────────────────────────────────
 @app.get("/health")
@@ -302,8 +302,8 @@ def create_render(project_id: str, payload: RenderJobCreateRequest = Body(defaul
     except FileNotFoundError as error:
         raise HTTPException(status_code=404, detail="Project not found") from error
 
-    if not RENDER_WORKER_SEMAPHORE.acquire(blocking=False):
-        raise HTTPException(status_code=429, detail="현재 렌더 대기열이 가득 참")
+    if not try_acquire_render_slot():
+        raise HTTPException(status_code=429, detail="렌더 대기 중")
 
     job = create_render_job(project_id, payload.preset or "9:16")
 
@@ -315,7 +315,7 @@ def create_render(project_id: str, payload: RenderJobCreateRequest = Body(defaul
         except Exception as error:  # noqa: BLE001
             fail_render_job(project_id, job.job_id, f"예상하지 못한 오류: {error}")
         finally:
-            RENDER_WORKER_SEMAPHORE.release()
+            release_render_slot()
 
     Thread(target=_worker, daemon=True).start()
     return read_render_job_by_id(job.job_id)
