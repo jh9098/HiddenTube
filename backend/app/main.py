@@ -1,10 +1,11 @@
+import os
 from pathlib import Path
 from threading import Thread
 from typing import Any
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .mapping import choose_scene_id
@@ -33,18 +34,35 @@ from .validator import validate_render_payload
 
 app = FastAPI(title="HiddenTube API", version="0.1.0")
 
+# ── CORS 설정 ──────────────────────────────────────────────────────────
+# 환경변수 CORS_ORIGINS 로 쉼표 구분 도메인을 설정할 수 있습니다.
+# 예: CORS_ORIGINS="https://yourdomain.com,https://www.yourdomain.com"
+# 미설정 시 모든 origin 허용 (개발 환경용)
+_raw_origins = os.getenv("CORS_ORIGINS", "")
+ALLOW_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()] if _raw_origins else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],  # 파일 다운로드 헤더 노출
 )
 
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
-app.mount("/projects", StaticFiles(directory=DATA_ROOT), name="projects")
+
+# 정적 파일 마운트: /static/projects 로 변경해 API 경로(/api)와 충돌 방지
+app.mount("/static/projects", StaticFiles(directory=DATA_ROOT), name="projects")
 
 
+# ── 헬스체크 ───────────────────────────────────────────────────────────
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
+# ── 프로젝트 ───────────────────────────────────────────────────────────
 @app.post("/api/projects")
 def create_project_endpoint(payload: ProjectCreateRequest):
     project = create_project(payload)
@@ -95,9 +113,17 @@ def _save_and_map(
 ) -> UploadResponse:
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in allowed_suffixes:
-        raise HTTPException(status_code=400, detail=f"허용되지 않는 파일 형식입니다: {suffix}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"허용되지 않는 파일 형식입니다: {suffix}. 허용 형식: {', '.join(allowed_suffixes)}",
+        )
 
     content = file.file.read()
+
+    # 빈 파일 체크
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="빈 파일은 업로드할 수 없습니다.")
+
     saved_name = save_upload(project_id, category, file.filename or f"upload{suffix}", content)
 
     mapping = read_asset_map(project_id)
@@ -108,7 +134,12 @@ def _save_and_map(
         if matched_scene_id:
             mapping[mapping_key][matched_scene_id] = saved_name
     else:
-        mapping[mapping_key].append(saved_name)
+        # bgm/subtitles: 중복 제거 후 추가
+        if mapping_key == "bgm":
+            if saved_name not in mapping[mapping_key]:
+                mapping[mapping_key].append(saved_name)
+        else:
+            mapping[mapping_key].append(saved_name)
 
     write_asset_map(project_id, mapping)
 
@@ -120,28 +151,58 @@ def _save_and_map(
     )
 
 
+# ── 업로드 엔드포인트 ───────────────────────────────────────────────────
 @app.post("/api/projects/{project_id}/upload/image")
-def upload_image(project_id: str, file: UploadFile = File(...), scene_id: str | None = Form(default=None)):
+def upload_image(
+    project_id: str,
+    file: UploadFile = File(...),
+    scene_id: str | None = Form(default=None),
+):
+    _ensure_project(project_id)
     return _save_and_map(project_id, file, "images", "images", (".png", ".jpg", ".jpeg", ".webp"), scene_id)
 
 
 @app.post("/api/projects/{project_id}/upload/audio")
-def upload_audio(project_id: str, file: UploadFile = File(...), scene_id: str | None = Form(default=None)):
+def upload_audio(
+    project_id: str,
+    file: UploadFile = File(...),
+    scene_id: str | None = Form(default=None),
+):
+    _ensure_project(project_id)
     return _save_and_map(project_id, file, "audio", "audio", (".mp3", ".wav"), scene_id)
 
 
 @app.post("/api/projects/{project_id}/upload/subtitle")
-def upload_subtitle(project_id: str, file: UploadFile = File(...), scene_id: str | None = Form(default=None)):
+def upload_subtitle(
+    project_id: str,
+    file: UploadFile = File(...),
+    scene_id: str | None = Form(default=None),
+):
+    _ensure_project(project_id)
     return _save_and_map(project_id, file, "subtitles", "subtitles", (".srt", ".txt"), scene_id)
 
 
 @app.post("/api/projects/{project_id}/upload/bgm")
-def upload_bgm(project_id: str, file: UploadFile = File(...)):
+def upload_bgm(
+    project_id: str,
+    file: UploadFile = File(...),
+):
+    _ensure_project(project_id)
     return _save_and_map(project_id, file, "bgm", "bgm", (".mp3", ".wav"), None)
 
 
+def _ensure_project(project_id: str) -> None:
+    """프로젝트 존재 확인 헬퍼"""
+    try:
+        read_project(project_id)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Project not found") from error
+
+
+# ── 에셋 ───────────────────────────────────────────────────────────────
 @app.get("/api/projects/{project_id}/assets")
 def get_assets(project_id: str):
+    _ensure_project(project_id)
     return {
         "assets": list_assets(project_id),
         "asset_map": read_asset_map(project_id),
@@ -165,6 +226,7 @@ def update_asset_mapping(project_id: str, payload: dict[str, Any]):
     return {"ok": True, "asset_map": mapping}
 
 
+# ── 검증 / 렌더 ────────────────────────────────────────────────────────
 @app.post("/api/projects/{project_id}/validate-render", response_model=ValidateResponse)
 def validate_render(project_id: str):
     try:
@@ -220,7 +282,7 @@ def get_render_log(job_id: str):
     log_path = base_dir / job.log_path
     if not log_path.exists():
         raise HTTPException(status_code=404, detail="Render log not found")
-    return FileResponse(log_path)
+    return FileResponse(log_path, media_type="text/plain; charset=utf-8")
 
 
 @app.get("/api/render-jobs/{job_id}/result")
@@ -238,7 +300,12 @@ def get_render_result(job_id: str):
     if not output_path.exists():
         raise HTTPException(status_code=404, detail="Render output missing")
 
-    return FileResponse(output_path, media_type="video/mp4", filename=f"{job.job_id}.mp4")
+    return FileResponse(
+        output_path,
+        media_type="video/mp4",
+        filename=f"{job.job_id}.mp4",
+        headers={"Content-Disposition": f'attachment; filename="{job.job_id}.mp4"'},
+    )
 
 
 @app.get("/api/render-jobs/{job_id}/thumbnail")
