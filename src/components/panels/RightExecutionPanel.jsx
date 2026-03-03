@@ -9,6 +9,7 @@ import {
   getReadyNodeIds,
   getWaitingNodeIds,
 } from "./previewFlow";
+import { composePromptTemplate, stripTrailingMentionLine, toMentionToken } from "./promptMentionTokens";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
@@ -317,8 +318,21 @@ function StepPanel({
       .filter(Boolean)
       .map((node) => ({ id: node.id, label: node.data?.label || "노드" }));
   }, [edges, nodes, selectedNode.id]);
+
+  useEffect(() => {
+    const normalizedTemplate = composePromptTemplate(
+      stripTrailingMentionLine(promptTemplate),
+      incomingNodes.map((node) => node.label)
+    );
+
+    if (normalizedTemplate !== promptTemplate) {
+      onUpdateNodePromptTemplate(selectedNode.id, normalizedTemplate);
+    }
+  }, [incomingNodes, onUpdateNodePromptTemplate, promptTemplate, selectedNode.id]);
+
   const handlePromptTemplateChange = (nextValue) => {
-    onUpdateNodePromptTemplate(selectedNode.id, nextValue);
+    const mentionLabels = incomingNodes.map((node) => node.label);
+    onUpdateNodePromptTemplate(selectedNode.id, composePromptTemplate(nextValue, mentionLabels));
   };
 
   return (
@@ -331,12 +345,14 @@ function StepPanel({
       <div className="field">
         <label>명령어(Prompt)</label>
         <div className="prompt-editor-box">
-          <div className="mention-token-list" role="list" aria-label="연결 노드 목록">
+          <div className="prompt-editor-inner">
+            <div className="prompt-mention-overlay" role="list" aria-label="연결 노드 목록">
             {incomingNodes.map((node) => {
               return (
                 <div key={node.id} className="mention-chip" role="listitem" title={`${node.label} 연결됨`}>
                   <span className="mention-chip-icon" aria-hidden="true">🔗</span>
                   <span className="mention-chip-label">{node.label}</span>
+                  <span className="mention-chip-token">{toMentionToken(node.label)}</span>
                   <button
                     type="button"
                     className="mention-chip-remove"
@@ -348,21 +364,18 @@ function StepPanel({
                 </div>
               );
             })}
+            </div>
 
-            {incomingNodes.length === 0 && (
-              <div className="mention-token-empty">연결된 노드가 없습니다.</div>
-            )}
+            <textarea
+              className="config-editor prompt-editor-textarea"
+              value={promptTemplate}
+              onChange={(event) => handlePromptTemplateChange(event.target.value)}
+            />
           </div>
-
-          <textarea
-            className="config-editor"
-            value={promptTemplate}
-            onChange={(event) => handlePromptTemplateChange(event.target.value)}
-          />
         </div>
 
         <p className="panel-help">
-          연결이 생기면 아이콘이 자동으로 추가됩니다. 아이콘의 ✕ 버튼을 누르면 연결도 함께 해제됩니다.
+          연결 노드 아이콘은 프롬프트 입력창 안쪽에 표시됩니다. ✕ 버튼을 누르면 연결도 함께 해제됩니다.
         </p>
       </div>
 
