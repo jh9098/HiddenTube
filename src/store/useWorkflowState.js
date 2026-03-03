@@ -36,9 +36,9 @@ function sanitizeSelectionIds(ids) {
   return [...new Set((ids || []).filter(Boolean))];
 }
 
-function getInitialPresent() {
+function getInitialPresent(storageKeys) {
   try {
-    const historyText = localStorage.getItem(WORKFLOW_HISTORY_STORAGE_KEY);
+    const historyText = localStorage.getItem(storageKeys.historyKey);
     if (historyText) {
       const parsedHistory = JSON.parse(historyText);
       if (Array.isArray(parsedHistory?.present?.nodes) && Array.isArray(parsedHistory?.present?.edges)) {
@@ -46,7 +46,7 @@ function getInitialPresent() {
       }
     }
 
-    const workflowText = localStorage.getItem(WORKFLOW_STORAGE_KEY);
+    const workflowText = localStorage.getItem(storageKeys.workflowKey);
     if (workflowText) {
       return deserializeWorkflow(workflowText);
     }
@@ -57,8 +57,12 @@ function getInitialPresent() {
   return createYoutubeTemplate();
 }
 
-export function useWorkflowState() {
-  const [history, setHistory] = useState(() => createHistoryState(getInitialPresent()));
+export function useWorkflowState(options = {}) {
+  const storageKeys = {
+    workflowKey: options.workflowKey || WORKFLOW_STORAGE_KEY,
+    historyKey: options.historyKey || WORKFLOW_HISTORY_STORAGE_KEY,
+  };
+  const [history, setHistory] = useState(() => createHistoryState(getInitialPresent(storageKeys)));
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState([]);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState([]);
@@ -380,13 +384,13 @@ export function useWorkflowState() {
 
   const saveToLocalStorage = useCallback(() => {
     const serialized = serializeWorkflow({ nodes, edges });
-    localStorage.setItem(WORKFLOW_STORAGE_KEY, serialized);
-    localStorage.setItem(WORKFLOW_HISTORY_STORAGE_KEY, JSON.stringify(history));
+    localStorage.setItem(storageKeys.workflowKey, serialized);
+    localStorage.setItem(storageKeys.historyKey, JSON.stringify(history));
     return serialized;
-  }, [edges, history, nodes]);
+  }, [edges, history, nodes, storageKeys.historyKey, storageKeys.workflowKey]);
 
   const loadFromLocalStorage = useCallback(() => {
-    const savedText = localStorage.getItem(WORKFLOW_STORAGE_KEY);
+    const savedText = localStorage.getItem(storageKeys.workflowKey);
     if (!savedText) {
       throw new Error("저장된 워크플로우가 없습니다.");
     }
@@ -394,7 +398,7 @@ export function useWorkflowState() {
     commitPresent({ nodes: loaded.nodes, edges: loaded.edges });
     selectSingleNode(null);
     setSelectedEdgeIds([]);
-  }, [commitPresent, selectSingleNode]);
+  }, [commitPresent, selectSingleNode, storageKeys.workflowKey]);
 
   const importFromJson = useCallback(
     (rawText) => {
@@ -433,14 +437,14 @@ export function useWorkflowState() {
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       const serialized = serializeWorkflow({ nodes, edges });
-      localStorage.setItem(WORKFLOW_STORAGE_KEY, serialized);
-      localStorage.setItem(WORKFLOW_HISTORY_STORAGE_KEY, JSON.stringify(history));
+      localStorage.setItem(storageKeys.workflowKey, serialized);
+      localStorage.setItem(storageKeys.historyKey, JSON.stringify(history));
     }, AUTO_SAVE_DELAY_MS);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [edges, history, nodes]);
+  }, [edges, history, nodes, storageKeys.historyKey, storageKeys.workflowKey]);
 
   return {
     nodes,
