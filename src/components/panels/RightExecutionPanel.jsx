@@ -5,6 +5,11 @@ import Button from "../ui/Button";
 import { TabsList, TabsTrigger } from "../ui/Tabs";
 import { Card, CardContent } from "../ui/Card";
 import { composePromptTemplate, stripTrailingMentionLine } from "./promptMentionTokens";
+import {
+  buildPreviewFlow,
+  getReadyNodeIds,
+  getWaitingNodeIds,
+} from "./previewFlow";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
@@ -48,25 +53,14 @@ function buildExecutionOrder(nodes, edges) {
   return order.length === nodes.length ? order : nodes.map((node) => node.id);
 }
 
-function collectConnectedNodeIds(startNodeId, edges) {
-  if (!startNodeId) return new Set();
-
-  const visited = new Set([startNodeId]);
-  const queue = [startNodeId];
-
-  while (queue.length) {
-    const currentNodeId = queue.shift();
-    edges.forEach((edge) => {
-      if (edge.source !== currentNodeId || visited.has(edge.target)) return;
-      visited.add(edge.target);
-      queue.push(edge.target);
-    });
-  }
-
-  return visited;
-}
-
-function PreviewWorkspace({ displayNodes, nodes, edges, onExecuteFromNode, onMessage }) {
+function PreviewWorkspace({
+  displayNodes,
+  waitingNodes,
+  nodes,
+  edges,
+  onExecuteFromNode,
+  onMessage,
+}) {
   const [manualResponses, setManualResponses] = useState({});
 
   useEffect(() => {
@@ -138,16 +132,31 @@ function PreviewWorkspace({ displayNodes, nodes, edges, onExecuteFromNode, onMes
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  onExecuteFromNode(node.id, { [node.id]: manualResponse });
+                onClick={async () => {
+                  const result = await onExecuteFromNode(node.id, { [node.id]: manualResponse });
+                  if (!result?.ok) {
+                    onMessage?.(result?.message || "저장에 실패해 다음 단계로 전달할 수 없습니다.");
+                  }
                 }}
               >
-                저장 후 다음 노드로 전달
+                다음으로 전달
               </Button>
             </div>
           </article>
         );
       })}
+
+      {waitingNodes.length > 0 && (
+        <article className="console-item waiting-node-box">
+          <h4>대기 중 노드</h4>
+          <p className="console-subtitle">아직 전달 조건이 충족되지 않은 노드입니다.</p>
+          <ul className="waiting-node-list">
+            {waitingNodes.map((node) => (
+              <li key={node.id}>{node.data?.label || "노드"}</li>
+            ))}
+          </ul>
+        </article>
+      )}
     </section>
   );
 }
@@ -157,37 +166,89 @@ function PreviewPanel({
   edges,
   projectTitle,
   onStart,
+  onCancel,
   hasStarted,
+  canUndoPreview,
+  onUndoPreview,
   onExecuteFromNode,
   onMessage,
 }) {
   const orderedNodeIds = useMemo(() => buildExecutionOrder(nodes, edges), [nodes, edges]);
   const nodeMap = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const orderedNodes = orderedNodeIds.map((nodeId) => nodeMap.get(nodeId)).filter(Boolean);
+  const [deliveredNodeIds, setDeliveredNodeIds] = useState([]);
+  const [lastSnapshot, setLastSnapshot] = useState(null);
 
-  const firstContentInputNode = useMemo(
-    () => orderedNodes.find((node) => node.type === "ContentInputNode"),
-    [orderedNodes]
-  );
+  const previewFlow = useMemo(() => buildPreviewFlow(nodes, edges), [nodes, edges]);
 
-  const connectedNodeIds = useMemo(
-    () => collectConnectedNodeIds(firstContentInputNode?.id, edges),
-    [firstContentInputNode?.id, edges]
-  );
+  useEffect(() => {
+    if (!hasStarted) return;
+    setDeliveredNodeIds((current) => current.filter((nodeId) => previewFlow.nodeById.has(nodeId)));
+  }, [hasStarted, previewFlow]);
+
+  const visibleNodeIds = useMemo(() => {
+    if (!hasStarted) return [];
+    const readyNodeIds = getReadyNodeIds(previewFlow, deliveredNodeIds);
+    return [...previewFlow.contentInputNodeIds, ...readyNodeIds];
+  }, [deliveredNodeIds, hasStarted, previewFlow]);
+
+  const waitingNodeIds = useMemo(() => {
+    if (!hasStarted) return [];
+    return getWaitingNodeIds(previewFlow, deliveredNodeIds);
+  }, [deliveredNodeIds, hasStarted, previewFlow]);
 
   const displayNodes = useMemo(
-    () => orderedNodes.filter((node) => connectedNodeIds.has(node.id)),
-    [orderedNodes, connectedNodeIds]
+    () => orderedNodes.filter((node) => visibleNodeIds.includes(node.id)),
+    [orderedNodes, visibleNodeIds]
   );
+
+  const waitingNodes = useMemo(
+    () => orderedNodes.filter((node) => waitingNodeIds.includes(node.id)),
+    [orderedNodes, waitingNodeIds]
+  );
+
+  const handleDeliver = async (nodeId, manualOverrides) => {
+    const result = await onExecuteFromNode(nodeId, manualOverrides);
+    if (!result?.ok) return result;
+
+    setDeliveredNodeIds((current) => (current.includes(nodeId) ? current : [...current, nodeId]));
+    return result;
+  };
+
+  const handleCancel = () => {
+    setLastSnapshot(deliveredNodeIds);
+    setDeliveredNodeIds([]);
+    onCancel();
+  };
+
+  const handleUndoCancel = () => {
+    if (!lastSnapshot) return;
+    setDeliveredNodeIds(lastSnapshot);
+    onUndoPreview();
+    setLastSnapshot(null);
+  };
 
   return (
     <div className="execution-pane preview-pane">
       <div className="preview-hero">
         <div className="preview-logo" />
-        <h3>{projectTitle || "Untitled Project"}</h3>
-        <Button type="button" className="start-btn" onClick={onStart}>
-          ✦ Start
-        </Button>
+        <div className="preview-hero-title-box">
+          <h3>{projectTitle || "Untitled Project"}</h3>
+          {!hasStarted ? (
+            <Button type="button" className="start-btn" onClick={onStart}>
+              ✦ Start
+            </Button>
+          ) : (
+            <Button type="button" className="start-btn" variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+          )}
+          {!hasStarted && canUndoPreview && (
+            <Button type="button" size="sm" variant="ghost" onClick={handleUndoCancel}>
+              Undo
+            </Button>
+          )}
+        </div>
       </div>
 
       {!hasStarted && <p className="panel-help">Start를 누르면 내용 입력 단계가 시작됩니다.</p>}
@@ -195,9 +256,10 @@ function PreviewPanel({
       {hasStarted && (
         <PreviewWorkspace
           displayNodes={displayNodes}
+          waitingNodes={waitingNodes}
           nodes={nodes}
           edges={edges}
-          onExecuteFromNode={onExecuteFromNode}
+          onExecuteFromNode={handleDeliver}
           onMessage={onMessage}
         />
       )}
@@ -410,6 +472,7 @@ function RightExecutionPanel({
 }) {
   const [activeTab, setActiveTab] = useState("preview");
   const [hasStarted, setHasStarted] = useState(false);
+  const [canUndoPreview, setCanUndoPreview] = useState(false);
 
   return (
     <aside className="side-panel right-execution-panel">
@@ -442,6 +505,16 @@ function RightExecutionPanel({
               onStart={() => {
                 onStart();
                 setHasStarted(true);
+                setCanUndoPreview(false);
+              }}
+              onCancel={() => {
+                setHasStarted(false);
+                setCanUndoPreview(true);
+              }}
+              canUndoPreview={canUndoPreview}
+              onUndoPreview={() => {
+                setHasStarted(true);
+                setCanUndoPreview(false);
               }}
               hasStarted={hasStarted}
               onExecuteFromNode={onExecuteFromNode}
