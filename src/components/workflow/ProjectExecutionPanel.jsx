@@ -1,9 +1,10 @@
 import React from "react";
 import RightExecutionPanel from "../panels/RightExecutionPanel";
 
-function ProjectExecutionPanel({ workflow, projectTitle, setMessage }) {
+function ProjectExecutionPanel({ projectId, workflow, projectTitle, setMessage }) {
   return (
     <RightExecutionPanel
+      projectId={projectId}
       nodes={workflow.nodes}
       edges={workflow.edges}
       projectTitle={projectTitle}
@@ -38,7 +39,6 @@ function ProjectExecutionPanel({ workflow, projectTitle, setMessage }) {
 
         try {
           workflow.executeFromNode(nodeId, manualOverrides);
-          setMessage("저장 후 다음 단계로 전달했습니다.");
           return { ok: true };
         } catch (error) {
           return { ok: false, message: `저장 실패: ${error.message}` };

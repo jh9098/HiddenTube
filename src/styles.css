@@ -294,11 +294,12 @@ body {
   border: 1px solid transparent;
 }
 
-.status-idle { color: #4b5563; border-color: #d1d5db; }
-.status-ready { color: #0f766e; border-color: #5eead4; }
-.status-running { color: #1d4ed8; border-color: #93c5fd; }
-.status-done { color: #166534; border-color: #86efac; }
-.status-error { color: #b91c1c; border-color: #fca5a5; }
+.status-pending { color: #4b5563; border-color: #d1d5db; background: #f9fafb; }
+.status-ready { color: #0f766e; border-color: #5eead4; background: #f0fdfa; }
+.status-running { color: #1d4ed8; border-color: #93c5fd; background: #eff6ff; }
+.status-done { color: #166534; border-color: #86efac; background: #f0fdf4; }
+.status-error { color: #b91c1c; border-color: #fca5a5; background: #fef2f2; }
+.status-idle { color: #4b5563; border-color: #d1d5db; background: #f9fafb; }
 
 .right-execution-panel {
   position: relative;
@@ -337,6 +338,15 @@ body {
 .ui-tabs-trigger.active {
   background: hsl(222.2 47.4% 11.2%);
   color: white;
+}
+
+.ui-tabs-trigger:focus-visible,
+.console-node-title:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid hsl(243.4 75.4% 58.6%);
+  outline-offset: 2px;
 }
 
 .execution-card {
@@ -404,6 +414,12 @@ body {
   font-size: 12px;
   margin: 8px 0 4px;
   color: hsl(215.4 16.3% 46.9%);
+}
+
+.draft-saved-badge {
+  font-size: 12px;
+  color: #0f766e;
+  margin: 0 0 8px;
 }
 
 .step-action-row {

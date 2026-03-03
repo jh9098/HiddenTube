@@ -160,7 +160,7 @@ function WorkflowEditorBody({ projectId }) {
         </ReactFlow>
       </main>
 
-      <ProjectExecutionPanel workflow={workflow} projectTitle={projectTitle} setMessage={setMessage} />
+      <ProjectExecutionPanel projectId={projectId} workflow={workflow} projectTitle={projectTitle} setMessage={setMessage} />
     </div>
   );
 }
