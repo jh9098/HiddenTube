@@ -289,9 +289,20 @@ body {
 .status-error { color: #b91c1c; border-color: #fca5a5; }
 
 .right-execution-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.execution-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 6px;
+  border: 1px solid hsl(214.3 31.8% 91.4%);
+  border-radius: 10px;
+  background: hsl(210 40% 98% / 0.98);
 }
 
 .ui-tabs-list {
@@ -314,6 +325,13 @@ body {
 
 .execution-card {
   flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 680px) {
+  .execution-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .execution-pane {
