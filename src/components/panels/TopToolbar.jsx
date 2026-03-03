@@ -39,33 +39,39 @@ function TopToolbar({
         placeholder="프로젝트 제목을 입력하세요"
         onChange={(event) => onProjectTitleChange(event.target.value)}
       />
-      <Button variant="outline" onClick={onNew}>
-        새 워크플로우
-      </Button>
-      <Button variant="outline" onClick={onUndo} disabled={!canUndo}>
-        Undo
-      </Button>
-      <Button variant="outline" onClick={onRedo} disabled={!canRedo}>
-        Redo
-      </Button>
-      <Button variant="outline" onClick={onSave}>
-        저장
-      </Button>
-      <Button variant="outline" onClick={onLoad}>
-        불러오기
-      </Button>
-      <Button variant="outline" onClick={onLoadTemplate}>
-        예시 템플릿
-      </Button>
-      <Button variant="outline" onClick={onExport}>
-        JSON 내보내기
-      </Button>
-      <Button onClick={onExecuteAll}>
-        전체 프롬프트 실행
-      </Button>
-      <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-        JSON 가져오기
-      </Button>
+      <div className="toolbar-action-group">
+        <Button variant="outline" onClick={onNew}>
+          워크플로우 새로 만들기
+        </Button>
+        <Button variant="ghost" onClick={onUndo} disabled={!canUndo}>
+          되돌리기
+        </Button>
+        <Button variant="ghost" onClick={onRedo} disabled={!canRedo}>
+          다시 적용하기
+        </Button>
+      </div>
+      <div className="toolbar-group-separator" aria-hidden="true" />
+      <div className="toolbar-action-group">
+        <Button onClick={onExecuteAll}>전체 프롬프트 실행하기</Button>
+      </div>
+      <div className="toolbar-group-separator" aria-hidden="true" />
+      <div className="toolbar-action-group">
+        <Button variant="outline" onClick={onSave}>
+          저장하기
+        </Button>
+        <Button variant="outline" onClick={onLoad}>
+          불러오기
+        </Button>
+        <Button variant="ghost" onClick={onLoadTemplate}>
+          템플릿 적용하기
+        </Button>
+        <Button variant="outline" onClick={onExport}>
+          JSON 내보내기
+        </Button>
+        <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+          JSON 가져오기
+        </Button>
+      </div>
       <input
         ref={fileInputRef}
         hidden

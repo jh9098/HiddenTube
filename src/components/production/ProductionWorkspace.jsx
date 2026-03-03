@@ -106,9 +106,9 @@ function ManualRenderJsonInput({ onApply }) {
           {err && <div style={{ color: "#dc2626", fontSize: 11, marginTop: 4 }}>{err}</div>}
           <button
             onClick={handleApply}
-            style={{ marginTop: 6, width: "100%", border: "none", borderRadius: 8, background: "#6366f1", color: "#fff", padding: "7px 0", fontSize: 12, cursor: "pointer", fontWeight: 600 }}
+            style={{ marginTop: 6, width: "100%", border: "1px solid #c7d2fe", borderRadius: 8, background: "#fff", color: "#4f46e5", padding: "7px 0", fontSize: 12, cursor: "pointer", fontWeight: 600 }}
           >
-            이 JSON으로 적용
+            이 JSON으로 적용하기
           </button>
         </div>
       )}
@@ -149,7 +149,7 @@ function ApiConnectionTest({ apiBaseUrl }) {
           disabled={status === "testing"}
           style={{ marginLeft: "auto", border: "none", borderRadius: 6, background: "#374151", color: "#fff", padding: "3px 10px", fontSize: 11, cursor: "pointer", opacity: status === "testing" ? 0.6 : 1 }}
         >
-          {status === "testing" ? "테스트 중..." : "테스트"}
+          {status === "testing" ? "테스트 중..." : "연결 테스트하기"}
         </button>
       </div>
       {detail && (
@@ -330,7 +330,7 @@ export default function ProductionWorkspace({ nodes = [], edges = [], projectTit
               whiteSpace: "nowrap", opacity: creating ? 0.6 : 1,
             }}
           >
-            {creating ? "시작 준비 중..." : "작업 시작"}
+            {creating ? "시작 준비 중..." : "작업 시작하기"}
           </button>
         </div>
 
@@ -359,7 +359,7 @@ export default function ProductionWorkspace({ nodes = [], edges = [], projectTit
           }}
           title={!projectId ? "먼저 작업 시작을 눌러주세요" : hasRenderJson ? "render_json을 서버에 저장합니다" : "render_json이 없어도 저장 가능합니다"}
         >
-          {saving ? "저장 중..." : `↑ render_json 서버에 저장${!hasRenderJson ? " (현재 비어있음)" : ""}`}
+          {saving ? "저장 중..." : `↑ render_json 저장하기${!hasRenderJson ? " (현재 비어있음)" : ""}`}
         </button>
 
         {/* 메시지 */}

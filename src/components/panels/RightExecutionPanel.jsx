@@ -237,22 +237,22 @@ function PreviewPanel({
           <h3>{projectTitle || "Untitled Project"}</h3>
           {!hasStarted ? (
             <Button type="button" className="start-btn" onClick={onStart}>
-              ✦ Start
+              ✦ 시작하기
             </Button>
           ) : (
             <Button type="button" className="start-btn" variant="outline" onClick={handleCancel}>
-              Cancel
+              중단하기
             </Button>
           )}
           {!hasStarted && canUndoPreview && (
             <Button type="button" size="sm" variant="ghost" onClick={handleUndoCancel}>
-              Undo
+              취소 되돌리기
             </Button>
           )}
         </div>
       </div>
 
-      {!hasStarted && <p className="panel-help">Start를 누르면 내용 입력 단계가 시작됩니다.</p>}
+      {!hasStarted && <p className="panel-help">시작하기를 누르면 내용 입력 단계가 시작됩니다.</p>}
 
       {hasStarted && (
         <PreviewWorkspace
@@ -398,20 +398,20 @@ function RightExecutionPanel({
     <aside className="side-panel right-execution-panel">
       <TabsList className="execution-tabs">
         <TabsTrigger active={activeTab === "preview"} onClick={() => setActiveTab("preview")}>
-          Preview
+          미리보기
         </TabsTrigger>
         <TabsTrigger active={activeTab === "production"} onClick={() => setActiveTab("production")}>
-          Production
+          프로덕션
         </TabsTrigger>
         <TabsTrigger active={activeTab === "console"} onClick={() => setActiveTab("console")}>
-          Console
+          콘솔 보기
         </TabsTrigger>
         <TabsTrigger
           active={activeTab === "step"}
           disabled={!selectedNode}
           onClick={() => setActiveTab("step")}
         >
-          Step
+          스텝 편집
         </TabsTrigger>
       </TabsList>
 

@@ -43,6 +43,18 @@ body {
   backdrop-filter: blur(6px);
 }
 
+.toolbar-action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-group-separator {
+  width: 1px;
+  height: 24px;
+  background: hsl(214.3 31.8% 88%);
+}
+
 .toolbar-brand {
   font-weight: 800;
   margin-right: 12px;
@@ -303,6 +315,10 @@ body {
   border: 1px solid hsl(214.3 31.8% 91.4%);
   border-radius: 10px;
   background: hsl(210 40% 98% / 0.98);
+}
+
+.execution-tabs .ui-tabs-trigger:not(:last-child) {
+  border-right: 1px solid hsl(214.3 31.8% 88%);
 }
 
 .ui-tabs-list {
