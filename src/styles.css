@@ -402,6 +402,12 @@ body {
   color: hsl(215.4 16.3% 46.9%);
 }
 
+.prompt-editor-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .mention-chip {
   display: inline-flex;
   align-items: center;
