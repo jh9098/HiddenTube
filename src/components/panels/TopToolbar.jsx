@@ -2,6 +2,7 @@ import React, { useRef } from "react";
 import Button from "../ui/Button";
 
 function TopToolbar({
+  onHome,
   onNew,
   onSave,
   onLoad,
@@ -29,7 +30,9 @@ function TopToolbar({
 
   return (
     <header className="top-toolbar">
-      <div className="toolbar-brand">HiddenTube · Workflow Builder</div>
+      <button type="button" className="toolbar-brand toolbar-home-btn" onClick={onHome}>
+        HiddenTube
+      </button>
       <input
         className="toolbar-project-title-input"
         value={projectTitle}
