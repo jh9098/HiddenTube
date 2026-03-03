@@ -17,6 +17,6 @@ export function CardDescription({ className, ...props }) {
   return <p className={cn("ui-card-description", className)} {...props} />;
 }
 
-export function CardContent({ className, ...props }) {
-  return <div className={cn("ui-card-content", className)} {...props} />;
-}
+export const CardContent = React.forwardRef(function CardContent({ className, ...props }, ref) {
+  return <div ref={ref} className={cn("ui-card-content", className)} {...props} />;
+});
