@@ -9,7 +9,6 @@ function TopToolbar({
   onLoadTemplate,
   onExport,
   onImport,
-  onExecuteAll,
   onUndo,
   onRedo,
   canUndo,
@@ -49,10 +48,6 @@ function TopToolbar({
         <Button variant="ghost" onClick={onRedo} disabled={!canRedo}>
           다시 적용하기
         </Button>
-      </div>
-      <div className="toolbar-group-separator" aria-hidden="true" />
-      <div className="toolbar-action-group">
-        <Button onClick={onExecuteAll}>전체 프롬프트 실행하기</Button>
       </div>
       <div className="toolbar-group-separator" aria-hidden="true" />
       <div className="toolbar-action-group">

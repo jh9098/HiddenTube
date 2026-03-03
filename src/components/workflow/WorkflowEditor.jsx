@@ -128,10 +128,6 @@ function WorkflowEditorBody({ projectId }) {
           setMessage("JSON 파일로 내보냈습니다.");
         }}
         onImport={handleImport}
-        onExecuteAll={() => {
-          workflow.executeAllNodes();
-          setMessage("전체 노드를 실행해 프롬프트/출력을 갱신했습니다.");
-        }}
         onUndo={workflow.undo}
         onRedo={workflow.redo}
         canUndo={workflow.canUndo}
