@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { resolvePreviewPrompt } from "./previewPromptResolver";
 import ProductionWorkspace from "./ProductionWorkspace";
 import Button from "../ui/Button";
 import { TabsList, TabsTrigger } from "../ui/Tabs";
 import { Card, CardContent } from "../ui/Card";
-import { toMentionToken } from "./promptMentionTokens";
 import {
   buildPreviewFlow,
   getReadyNodeIds,
@@ -318,32 +317,8 @@ function StepPanel({
       .filter(Boolean)
       .map((node) => ({ id: node.id, label: node.data?.label || "노드" }));
   }, [edges, nodes, selectedNode.id]);
-  const promptTextareaRef = useRef(null);
-
   const handlePromptTemplateChange = (nextValue) => {
     onUpdateNodePromptTemplate(selectedNode.id, nextValue);
-  };
-
-  const handleInsertMention = (nodeLabel) => {
-    const token = toMentionToken(nodeLabel);
-    if (!token) return;
-
-    const textarea = promptTextareaRef.current;
-    if (!textarea) {
-      handlePromptTemplateChange(`${promptTemplate} ${token}`.trim());
-      return;
-    }
-
-    const start = textarea.selectionStart ?? promptTemplate.length;
-    const end = textarea.selectionEnd ?? promptTemplate.length;
-    const nextPrompt = `${promptTemplate.slice(0, start)}${token}${promptTemplate.slice(end)}`;
-    handlePromptTemplateChange(nextPrompt);
-
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const nextCaret = start + token.length;
-      textarea.setSelectionRange(nextCaret, nextCaret);
-    });
   };
 
   return (
@@ -355,52 +330,40 @@ function StepPanel({
       </div>
       <div className="field">
         <label>명령어(Prompt)</label>
-        <textarea
-          ref={promptTextareaRef}
-          className="config-editor"
-          value={promptTemplate}
-          onChange={(event) => handlePromptTemplateChange(event.target.value)}
-        />
-      </div>
+        <div className="prompt-editor-box">
+          <div className="mention-token-list" role="list" aria-label="연결 노드 목록">
+            {incomingNodes.map((node) => {
+              return (
+                <div key={node.id} className="mention-chip" role="listitem" title={`${node.label} 연결됨`}>
+                  <span className="mention-chip-icon" aria-hidden="true">🔗</span>
+                  <span className="mention-chip-label">{node.label}</span>
+                  <button
+                    type="button"
+                    className="mention-chip-remove"
+                    aria-label={`${node.label} 연결 해제`}
+                    onClick={() => onRemoveIncomingConnection(selectedNode.id, node.id)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
 
-      <div className="field">
-        <label>연결 노드 토큰(@노드 직접 삽입)</label>
-        <div className="mention-token-list" role="list" aria-label="연결 노드 토큰 목록">
-          {incomingNodes.length === 0 && (
-            <div className="mention-token-empty">연결된 노드가 없습니다.</div>
-          )}
-          {incomingNodes.map((node) => {
-            return (
-              <button
-                key={node.id}
-                type="button"
-                className="mention-chip"
-                onClick={() => handleInsertMention(node.label)}
-                title={`${node.label} 토큰 삽입`}
-              >
-                <span className="mention-chip-icon" aria-hidden="true">🔗</span>
-                <span className="mention-chip-label">{node.label}</span>
-                <span
-                  className="mention-chip-remove"
-                  role="button"
-                  tabIndex={0}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onRemoveIncomingConnection(selectedNode.id, node.id);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    onRemoveIncomingConnection(selectedNode.id, node.id);
-                  }}
-                >
-                  ✕
-                </span>
-              </button>
-            );
-          })}
+            {incomingNodes.length === 0 && (
+              <div className="mention-token-empty">연결된 노드가 없습니다.</div>
+            )}
+          </div>
+
+          <textarea
+            className="config-editor"
+            value={promptTemplate}
+            onChange={(event) => handlePromptTemplateChange(event.target.value)}
+          />
         </div>
+
+        <p className="panel-help">
+          연결이 생기면 아이콘이 자동으로 추가됩니다. 아이콘의 ✕ 버튼을 누르면 연결도 함께 해제됩니다.
+        </p>
       </div>
 
       <div className="step-action-row">
