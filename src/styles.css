@@ -572,3 +572,64 @@ body {
   color: hsl(215.4 16.3% 46.9%);
   font-size: 12px;
 }
+
+.prompt-token-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prompt-token-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mention-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.prompt-rich-editor {
+  min-height: 180px;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.prompt-rich-editor:focus {
+  outline: 2px solid hsl(243.4 75.4% 58.6% / 0.25);
+  outline-offset: 1px;
+}
+
+.prompt-rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: hsl(215.4 16.3% 46.9%);
+}
+
+.mention-inline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  margin: 0 2px;
+  vertical-align: baseline;
+}
+
+.mention-inline-chip-icon {
+  color: #6366f1;
+}
