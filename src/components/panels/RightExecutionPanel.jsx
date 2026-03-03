@@ -4,7 +4,7 @@ import ProductionWorkspace from "./ProductionWorkspace";
 import Button from "../ui/Button";
 import { TabsList, TabsTrigger } from "../ui/Tabs";
 import { Card, CardContent } from "../ui/Card";
-import { composePromptTemplate, stripTrailingMentionLine } from "./promptMentionTokens";
+import { toMentionToken } from "./promptMentionTokens";
 import {
   buildPreviewFlow,
   getReadyNodeIds,
@@ -310,7 +310,6 @@ function StepPanel({
   }
 
   const promptTemplate = selectedNode.data?.config?.promptTemplate || "";
-  const basePromptTemplate = useMemo(() => stripTrailingMentionLine(promptTemplate), [promptTemplate]);
   const incomingNodes = useMemo(() => {
     const sourceNodeById = new Map(nodes.map((node) => [node.id, node]));
     return edges
@@ -319,53 +318,31 @@ function StepPanel({
       .filter(Boolean)
       .map((node) => ({ id: node.id, label: node.data?.label || "노드" }));
   }, [edges, nodes, selectedNode.id]);
-  const [draggingMentionId, setDraggingMentionId] = useState(null);
-  const [orderedIncomingNodeIds, setOrderedIncomingNodeIds] = useState(() => incomingNodes.map((node) => node.id));
-  const dragOverMentionIdRef = useRef(null);
-
-  useEffect(() => {
-    setOrderedIncomingNodeIds((current) => {
-      const validSet = new Set(incomingNodes.map((node) => node.id));
-      const preserved = current.filter((id) => validSet.has(id));
-      const missing = incomingNodes.map((node) => node.id).filter((id) => !preserved.includes(id));
-      return [...preserved, ...missing];
-    });
-  }, [incomingNodes]);
-
-  const orderedMentionLabels = useMemo(() => {
-    const labelById = new Map(incomingNodes.map((node) => [node.id, node.label]));
-    return orderedIncomingNodeIds.map((id) => labelById.get(id)).filter(Boolean);
-  }, [incomingNodes, orderedIncomingNodeIds]);
-
-  useEffect(() => {
-    const composedTemplate = composePromptTemplate(basePromptTemplate, orderedMentionLabels);
-    if (composedTemplate !== promptTemplate) {
-      onUpdateNodePromptTemplate(selectedNode.id, composedTemplate);
-    }
-  }, [
-    basePromptTemplate,
-    onUpdateNodePromptTemplate,
-    orderedMentionLabels,
-    promptTemplate,
-    selectedNode.id,
-  ]);
+  const promptTextareaRef = useRef(null);
 
   const handlePromptTemplateChange = (nextValue) => {
-    const normalized = stripTrailingMentionLine(nextValue);
-    const composedTemplate = composePromptTemplate(normalized, orderedMentionLabels);
-    onUpdateNodePromptTemplate(selectedNode.id, composedTemplate);
+    onUpdateNodePromptTemplate(selectedNode.id, nextValue);
   };
 
-  const moveMentionToken = (sourceId, targetId) => {
-    if (!sourceId || !targetId || sourceId === targetId) return;
-    setOrderedIncomingNodeIds((current) => {
-      const next = [...current];
-      const sourceIndex = next.indexOf(sourceId);
-      const targetIndex = next.indexOf(targetId);
-      if (sourceIndex < 0 || targetIndex < 0) return current;
-      const [removed] = next.splice(sourceIndex, 1);
-      next.splice(targetIndex, 0, removed);
-      return next;
+  const handleInsertMention = (nodeLabel) => {
+    const token = toMentionToken(nodeLabel);
+    if (!token) return;
+
+    const textarea = promptTextareaRef.current;
+    if (!textarea) {
+      handlePromptTemplateChange(`${promptTemplate} ${token}`.trim());
+      return;
+    }
+
+    const start = textarea.selectionStart ?? promptTemplate.length;
+    const end = textarea.selectionEnd ?? promptTemplate.length;
+    const nextPrompt = `${promptTemplate.slice(0, start)}${token}${promptTemplate.slice(end)}`;
+    handlePromptTemplateChange(nextPrompt);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const nextCaret = start + token.length;
+      textarea.setSelectionRange(nextCaret, nextCaret);
     });
   };
 
@@ -379,45 +356,28 @@ function StepPanel({
       <div className="field">
         <label>명령어(Prompt)</label>
         <textarea
+          ref={promptTextareaRef}
           className="config-editor"
-          value={basePromptTemplate}
+          value={promptTemplate}
           onChange={(event) => handlePromptTemplateChange(event.target.value)}
         />
       </div>
 
       <div className="field">
-        <label>연결 노드 토큰(자동 @노드)</label>
+        <label>연결 노드 토큰(@노드 직접 삽입)</label>
         <div className="mention-token-list" role="list" aria-label="연결 노드 토큰 목록">
-          {orderedIncomingNodeIds.length === 0 && (
+          {incomingNodes.length === 0 && (
             <div className="mention-token-empty">연결된 노드가 없습니다.</div>
           )}
-          {orderedIncomingNodeIds.map((nodeId) => {
-            const node = incomingNodes.find((item) => item.id === nodeId);
-            if (!node) return null;
+          {incomingNodes.map((node) => {
             return (
               <button
                 key={node.id}
                 type="button"
-                draggable
-                className={`mention-chip ${draggingMentionId === node.id ? "dragging" : ""}`}
-                onDragStart={() => setDraggingMentionId(node.id)}
-                onDragEnter={() => {
-                  dragOverMentionIdRef.current = node.id;
-                  if (draggingMentionId) {
-                    moveMentionToken(draggingMentionId, node.id);
-                  }
-                }}
-                onDragOver={(event) => event.preventDefault()}
-                onDragEnd={() => {
-                  if (draggingMentionId && dragOverMentionIdRef.current) {
-                    moveMentionToken(draggingMentionId, dragOverMentionIdRef.current);
-                  }
-                  dragOverMentionIdRef.current = null;
-                  setDraggingMentionId(null);
-                }}
-                title={`${node.label} 토큰`}
+                className="mention-chip"
+                onClick={() => handleInsertMention(node.label)}
+                title={`${node.label} 토큰 삽입`}
               >
-                <span className="mention-chip-grip" aria-hidden="true">⋮⋮</span>
                 <span className="mention-chip-icon" aria-hidden="true">🔗</span>
                 <span className="mention-chip-label">{node.label}</span>
                 <span
