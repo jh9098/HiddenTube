@@ -9,7 +9,8 @@ import {
   getReadyNodeIds,
   getWaitingNodeIds,
 } from "./previewFlow";
-import { composePromptTemplate, stripTrailingMentionLine, toMentionToken } from "./promptMentionTokens";
+import { toMentionToken } from "./promptMentionTokens";
+import PromptTokenEditor from "./PromptTokenEditor";
 
 function getNodeExecutionState(node) {
   const manualResult = node?.data?.manualResult || "";
@@ -318,21 +319,8 @@ function StepPanel({
       .filter(Boolean)
       .map((node) => ({ id: node.id, label: node.data?.label || "노드" }));
   }, [edges, nodes, selectedNode.id]);
-
-  useEffect(() => {
-    const normalizedTemplate = composePromptTemplate(
-      stripTrailingMentionLine(promptTemplate),
-      incomingNodes.map((node) => node.label)
-    );
-
-    if (normalizedTemplate !== promptTemplate) {
-      onUpdateNodePromptTemplate(selectedNode.id, normalizedTemplate);
-    }
-  }, [incomingNodes, onUpdateNodePromptTemplate, promptTemplate, selectedNode.id]);
-
   const handlePromptTemplateChange = (nextValue) => {
-    const mentionLabels = incomingNodes.map((node) => node.label);
-    onUpdateNodePromptTemplate(selectedNode.id, composePromptTemplate(nextValue, mentionLabels));
+    onUpdateNodePromptTemplate(selectedNode.id, nextValue);
   };
 
   return (
@@ -345,37 +333,33 @@ function StepPanel({
       <div className="field">
         <label>명령어(Prompt)</label>
         <div className="prompt-editor-box">
-          <div className="prompt-editor-inner">
-            <div className="prompt-mention-overlay" role="list" aria-label="연결 노드 목록">
-            {incomingNodes.map((node) => {
-              return (
-                <div key={node.id} className="mention-chip" role="listitem" title={`${node.label} 연결됨`}>
-                  <span className="mention-chip-icon" aria-hidden="true">🔗</span>
-                  <span className="mention-chip-label">{node.label}</span>
-                  <span className="mention-chip-token">{toMentionToken(node.label)}</span>
-                  <button
-                    type="button"
-                    className="mention-chip-remove"
-                    aria-label={`${node.label} 연결 해제`}
-                    onClick={() => onRemoveIncomingConnection(selectedNode.id, node.id)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              );
-            })}
-            </div>
+          <PromptTokenEditor
+            value={promptTemplate}
+            mentionOptions={incomingNodes}
+            onChange={handlePromptTemplateChange}
+          />
 
-            <textarea
-              className="config-editor prompt-editor-textarea"
-              value={promptTemplate}
-              onChange={(event) => handlePromptTemplateChange(event.target.value)}
-            />
+          <div className="mention-token-list" role="list" aria-label="연결 노드 목록">
+            {incomingNodes.map((node) => (
+              <div key={node.id} className="mention-chip" role="listitem" title={`${node.label} 연결됨`}>
+                <span className="mention-chip-icon" aria-hidden="true">🔗</span>
+                <span className="mention-chip-label">{node.label}</span>
+                <span className="mention-chip-token">{toMentionToken(node.label)}</span>
+                <button
+                  type="button"
+                  className="mention-chip-remove"
+                  aria-label={`${node.label} 연결 해제`}
+                  onClick={() => onRemoveIncomingConnection(selectedNode.id, node.id)}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
         <p className="panel-help">
-          연결 노드 아이콘은 프롬프트 입력창 안쪽에 표시됩니다. ✕ 버튼을 누르면 연결도 함께 해제됩니다.
+          상단 토큰 버튼을 누르면 커서 위치에 참조 아이콘이 삽입됩니다. 한글 IME 타이핑도 일반 입력처럼 동작합니다.
         </p>
       </div>
 
