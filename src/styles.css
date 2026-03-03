@@ -472,6 +472,47 @@ body {
   font-size: 13px;
 }
 
+
+.home-layout {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 68px 1fr;
+}
+
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 18px;
+  background: hsl(0 0% 100% / 0.92);
+  border-bottom: 1px solid hsl(214.3 31.8% 91.4%);
+  backdrop-filter: blur(6px);
+}
+
+.home-header-brand {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.home-main {
+  grid-column: auto;
+}
+
+.empty-project-box {
+  margin-top: 18px;
+  border: 1px dashed hsl(214.3 31.8% 80%);
+  border-radius: 12px;
+  padding: 16px;
+  color: hsl(215.4 16.3% 46.9%);
+  background: #fff;
+}
+
+.project-card-link {
+  font-size: 11px;
+  color: #6366f1;
+}
 .project-list-main {
   grid-column: 1 / 3;
   padding: 24px;
