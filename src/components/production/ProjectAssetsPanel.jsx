@@ -7,19 +7,24 @@ import { getAssets, remapAsset, uploadAsset, validateRender } from "../../api/pr
 // ─────────────────────────────────────────────
 // 유틸
 // ─────────────────────────────────────────────
-function fileIcon(type) {
-  if (type === "images") return "🖼";
-  if (type === "audio") return "🎙";
-  if (type === "subtitles") return "📝";
-  if (type === "bgm") return "🎵";
-  return "📁";
-}
 
 function statusColor(status) {
   if (status === "done") return "#166534";
   if (status === "warn") return "#92400e";
   if (status === "error") return "#991b1b";
   return "#374151";
+}
+
+function Section({ title, hint, defaultOpen = false, children }) {
+  return (
+    <details open={defaultOpen} className="production-accordion">
+      <summary className="production-accordion-summary">
+        <span>{title}</span>
+        {hint ? <small>{hint}</small> : null}
+      </summary>
+      <div className="production-accordion-body">{children}</div>
+    </details>
+  );
 }
 
 // ─────────────────────────────────────────────
@@ -351,10 +356,8 @@ export default function ProjectAssetsPanel({ projectId, onAssetsReady }) {
         </div>
       )}
 
-      {/* ── 이미지 업로드 ── */}
-      <div>
+      <Section title="🖼 이미지 업로드" hint="필수" defaultOpen>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
-          {fileIcon("images")} 이미지{" "}
           <span style={{ color: "#6b7280", fontWeight: 400, fontSize: 11 }}>.png .jpg .jpeg .webp</span>
         </div>
         <DropZone
@@ -385,14 +388,12 @@ export default function ProjectAssetsPanel({ projectId, onAssetsReady }) {
             ))}
           </div>
         )}
-      </div>
+      </Section>
 
       <hr style={{ border: 0, borderTop: "1px solid #e5e7eb" }} />
 
-      {/* ── 오디오 업로드 ── */}
-      <div>
+      <Section title="🎙 오디오 업로드" hint="필수" defaultOpen>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
-          {fileIcon("audio")} 오디오 (TTS/보이스오버){" "}
           <span style={{ color: "#6b7280", fontWeight: 400, fontSize: 11 }}>.mp3 .wav</span>
         </div>
         <DropZone
@@ -422,14 +423,12 @@ export default function ProjectAssetsPanel({ projectId, onAssetsReady }) {
             ))}
           </div>
         )}
-      </div>
+      </Section>
 
       <hr style={{ border: 0, borderTop: "1px solid #e5e7eb" }} />
 
-      {/* ── BGM 업로드 ── */}
-      <div>
+      <Section title="🎵 BGM 업로드" hint="선택">
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
-          {fileIcon("bgm")} BGM (배경음악){" "}
           <span style={{ color: "#6b7280", fontWeight: 400, fontSize: 11 }}>.mp3 .wav</span>
         </div>
         <DropZone
@@ -443,14 +442,12 @@ export default function ProjectAssetsPanel({ projectId, onAssetsReady }) {
         {(fileList.bgm || []).length > 0 && (
           <div style={{ fontSize: 11, color: "#6b7280" }}>업로드된 BGM: {fileList.bgm.join(", ")}</div>
         )}
-      </div>
+      </Section>
 
       <hr style={{ border: 0, borderTop: "1px solid #e5e7eb" }} />
 
-      {/* ── 자막 업로드 ── */}
-      <div>
+      <Section title="📝 자막 업로드" hint="선택">
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
-          {fileIcon("subtitles")} 자막{" "}
           <span style={{ color: "#6b7280", fontWeight: 400, fontSize: 11 }}>.srt .txt (선택)</span>
         </div>
         <DropZone
@@ -464,12 +461,13 @@ export default function ProjectAssetsPanel({ projectId, onAssetsReady }) {
         {(fileList.subtitles || []).length > 0 && (
           <div style={{ fontSize: 11, color: "#6b7280" }}>업로드된 자막: {fileList.subtitles.join(", ")}</div>
         )}
-      </div>
+      </Section>
 
       <hr style={{ border: 0, borderTop: "1px solid #e5e7eb" }} />
 
-      {/* ── 렌더 검증 ── */}
-      <ValidationPanel projectId={projectId} />
+      <Section title="✅ 렌더 검증" hint="렌더 전에 한 번 확인">
+        <ValidationPanel projectId={projectId} />
+      </Section>
 
       {/* 새로고침 버튼 */}
       {loading ? (

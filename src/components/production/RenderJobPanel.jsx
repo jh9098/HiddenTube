@@ -109,25 +109,41 @@ export default function RenderJobPanel({ projectId }) {
                 }}
               />
 
-              <video src={getRenderResultUrl(job.job_id)} controls className="render-job-media" />
+              <details className="production-accordion" open>
+                <summary className="production-accordion-summary">
+                  <span>렌더 결과 미리보기</span>
+                  <small>필수 정보</small>
+                </summary>
+                <div className="production-accordion-body">
+                  <video src={getRenderResultUrl(job.job_id)} controls className="render-job-media" />
+                </div>
+              </details>
 
-              <div className="render-job-actions">
-                <a
-                  href={getRenderResultUrl(job.job_id)}
-                  download={`${job.job_id}.mp4`}
-                  className="render-job-link-btn is-download"
-                >
-                  ⬇ MP4 다운로드
-                </a>
-                <a
-                  href={getRenderLogUrl(job.job_id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="render-job-link-btn is-log"
-                >
-                  📋 렌더 로그
-                </a>
-              </div>
+              <details className="production-accordion">
+                <summary className="production-accordion-summary">
+                  <span>다운로드/로그</span>
+                  <small>상세</small>
+                </summary>
+                <div className="production-accordion-body">
+                  <div className="render-job-actions">
+                    <a
+                      href={getRenderResultUrl(job.job_id)}
+                      download={`${job.job_id}.mp4`}
+                      className="render-job-link-btn is-download"
+                    >
+                      ⬇ MP4 다운로드
+                    </a>
+                    <a
+                      href={getRenderLogUrl(job.job_id)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="render-job-link-btn is-log"
+                    >
+                      📋 렌더 로그
+                    </a>
+                  </div>
+                </div>
+              </details>
             </div>
           )}
 

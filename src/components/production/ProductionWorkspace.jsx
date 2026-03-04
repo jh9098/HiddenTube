@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createProject, getProject, updateProject } from "../../api/projectApi";
 import ProjectAssetsPanel from "./ProjectAssetsPanel";
 import RenderJobPanel from "./RenderJobPanel";
@@ -6,6 +6,31 @@ import ApiConnectionTest from "./workspace/ApiConnectionTest";
 import ManualRenderJsonInput from "./workspace/ManualRenderJsonInput";
 import ProductionTabBar from "./workspace/ProductionTabBar";
 import RenderJsonPreview from "./workspace/RenderJsonPreview";
+
+const ONBOARDING_STORAGE_KEY = "hiddentube_production_onboarding_seen";
+
+function summarizeAssetCompletion(data) {
+  const sceneIds = data?.scene_ids || [];
+  const assetMap = data?.asset_map || {};
+  if (!sceneIds.length) {
+    return { ready: false, reason: "씬 정보가 없어 render_json 저장 후 새로고침이 필요합니다." };
+  }
+
+  const missing = [];
+  sceneIds.forEach((sceneId) => {
+    if (!assetMap.images?.[sceneId]) missing.push(`${sceneId}: 이미지`);
+    if (!assetMap.audio?.[sceneId]) missing.push(`${sceneId}: 오디오`);
+  });
+
+  if (missing.length) {
+    return {
+      ready: false,
+      reason: `필수 에셋이 누락되었습니다 (${missing.length}건).`,
+      missing,
+    };
+  }
+  return { ready: true, reason: "필수 에셋이 충족되어 렌더링 단계로 이동할 수 있습니다.", missing: [] };
+}
 
 export default function ProductionWorkspace({ nodes = [], edges = [], projectTitle = "" }) {
   const [activeTab, setActiveTab] = useState("assets");
@@ -23,6 +48,14 @@ export default function ProductionWorkspace({ nodes = [], edges = [], projectTit
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [manualRenderJson, setManualRenderJson] = useState(null);
+  const [assetsStatus, setAssetsStatus] = useState({ ready: false, reason: "프로젝트를 먼저 시작해주세요.", missing: [] });
+  const [onboardingVisible, setOnboardingVisible] = useState(() => {
+    try {
+      return localStorage.getItem(ONBOARDING_STORAGE_KEY) !== "1";
+    } catch {
+      return true;
+    }
+  });
 
   const apiBaseUrl = (() => {
     try {
@@ -155,13 +188,28 @@ export default function ProductionWorkspace({ nodes = [], edges = [], projectTit
     }
   };
 
+  const dismissOnboarding = () => {
+    setOnboardingVisible(false);
+    try {
+      localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+    } catch {
+      // noop
+    }
+  };
+
   const renderJson = getRenderJson();
   const hasRenderJson = renderJson && Object.keys(renderJson).length > 0;
 
   const tabs = [
-    { id: "assets", label: "📦 에셋 업로드" },
-    { id: "render", label: "🎬 렌더링" },
+    { id: "assets", label: "1단계 · 에셋" },
+    { id: "render", label: "2단계 · 렌더링" },
   ];
+
+  const stepGuideText = useMemo(() => {
+    if (!projectId) return "먼저 '작업 시작하기'로 프로젝트를 만드세요.";
+    if (activeTab === "assets") return assetsStatus.reason;
+    return "렌더링을 시작한 뒤 상태와 로그를 확인하세요.";
+  }, [activeTab, assetsStatus.reason, projectId]);
 
   const saveButtonTitle = !projectId
     ? "먼저 작업 시작을 눌러주세요"
@@ -169,12 +217,26 @@ export default function ProductionWorkspace({ nodes = [], edges = [], projectTit
       ? "render_json을 서버에 저장합니다"
       : "render_json이 없어도 저장 가능합니다";
 
+  const moveNextDisabled = !projectId || !assetsStatus.ready;
+
   return (
     <div className="production-workspace">
       <div className="production-header">
-        <div className="production-title">Production 작업 공간</div>
-        <div className="production-subtitle">현재 설정으로 자동화 작업을 시작합니다.</div>
-        <div className="production-subtitle">작업 시작 후 실행 이력이 기록됩니다.</div>
+        <div className="production-title">Production 단계형 작업 공간</div>
+        <div className="production-subtitle">1) 프로젝트 시작 → 2) 필수 에셋 업로드 → 3) 렌더링 실행</div>
+        <div className="production-subtitle production-subtitle-muted">지금 단계: {stepGuideText}</div>
+
+        {onboardingVisible && (
+          <div className="production-onboarding-hint" role="status">
+            <div className="production-onboarding-title">처음이신가요? 순서대로 따라오세요.</div>
+            <div className="production-onboarding-body">
+              프로젝트를 만든 후 render_json 저장 → 에셋 탭에서 누락 항목 해결 → 렌더링 탭에서 시작 버튼을 누르면 됩니다.
+            </div>
+            <button type="button" onClick={dismissOnboarding} className="production-btn production-btn-dark">
+              확인했어요
+            </button>
+          </div>
+        )}
 
         <ApiConnectionTest apiBaseUrl={apiBaseUrl} />
 
@@ -226,8 +288,40 @@ export default function ProductionWorkspace({ nodes = [], edges = [], projectTit
       <ProductionTabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
       <div className="production-content">
-        {activeTab === "assets" && <ProjectAssetsPanel projectId={projectId} onAssetsReady={() => {}} />}
+        {activeTab === "assets" && (
+          <ProjectAssetsPanel
+            projectId={projectId}
+            onAssetsReady={(data) => {
+              setAssetsStatus(summarizeAssetCompletion(data));
+            }}
+          />
+        )}
         {activeTab === "render" && <RenderJobPanel projectId={projectId} />}
+      </div>
+
+      <div className="production-mobile-cta">
+        {activeTab === "assets" ? (
+          <button
+            type="button"
+            disabled={moveNextDisabled}
+            className="production-btn production-btn-primary production-btn-block"
+            onClick={() => setActiveTab("render")}
+            title={moveNextDisabled ? assetsStatus.reason : "렌더링 단계로 이동"}
+          >
+            다음 단계로: 렌더링
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="production-btn production-btn-secondary production-btn-block"
+            onClick={() => setActiveTab("assets")}
+          >
+            이전 단계로: 에셋 확인
+          </button>
+        )}
+        {activeTab === "assets" && assetsStatus.missing?.length > 0 && (
+          <p className="production-mobile-cta-help">누락 항목 예시: {assetsStatus.missing.slice(0, 2).join(", ")}</p>
+        )}
       </div>
     </div>
   );
