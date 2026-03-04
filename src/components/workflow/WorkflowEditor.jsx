@@ -20,6 +20,7 @@ function WorkflowEditorBody({ projectId }) {
   const navigate = useNavigate();
   const [message, setMessage] = useState("프로젝트 준비 완료");
   const [projectTitle, setProjectTitle] = useState("Untitled Project");
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
 
   const storageKeys = useMemo(() => getProjectStorageKeys(projectId), [projectId]);
   const workflow = useWorkflowState(storageKeys);
@@ -49,6 +50,13 @@ function WorkflowEditorBody({ projectId }) {
       })),
     [workflow.detachIncomingEdges, workflow.nodes]
   );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    const handleChange = (event) => setIsMobile(event.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   const handleSave = () => {
     const content = workflow.serializeCurrentWorkflow();
@@ -106,7 +114,7 @@ function WorkflowEditorBody({ projectId }) {
   }, [projectId, projectTitle]);
 
   return (
-    <div className="workflow-layout">
+    <div className={`workflow-layout ${isMobile ? "is-mobile-layout" : ""}`}>
       <TopToolbar
         onHome={() => navigate("/")}
         onNew={workflow.resetWorkflow}
